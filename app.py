@@ -12,6 +12,53 @@ st.set_page_config(
 FILE_PATH = "PREDAVKA_ELEKTRONICI_PRO_APPSHEET.xlsx"
 
 
+# --- PŘIHLAŠOVACÍ SYSTÉM ---
+def prihlaseni_uzivatele():
+    """Zobrazí přihlašovací formulář, pokud uživatel není přihlášen."""
+    if "prihlasen" not in st.session_state:
+        st.session_state["prihlasen"] = False
+
+    if st.session_state["prihlasen"]:
+        return True
+
+    st.title("🔒 Přihlášení do aplikace")
+    st.info("Pro přístup k evidenci závad se prosím přihlaste.")
+
+    with st.form("login_form"):
+        uzivatel = st.text_input("Uživatelské jméno:")
+        heslo = st.text_input("Heslo:", type="password")
+        submit_login = st.form_submit_button("Přihlásit se")
+
+        if submit_login:
+            povoleni_uzivatele = st.secrets.get("users", {})
+            if (
+                uzivatel in povoleni_uzivatele
+                and str(povoleni_uzivatele[uzivatel]) == heslo
+            ):
+                st.session_state["prihlasen"] = True
+                st.session_state["uzivatel_jmeno"] = uzivatel
+                st.rerun()
+            else:
+                st.error("❌ Nesprávné uživatelské jméno nebo heslo.")
+
+    return False
+
+
+# Pokud uživatel není přihlášen, aplikace dál nepokračuje
+if not prihlaseni_uzivatele():
+    st.stop()
+
+# --- SIĎEBAR: INFORMACE O UŽIVATELI A ODHLÁŠENÍ ---
+with st.sidebar:
+    st.write(
+        f"👤 Přihlášen: **{st.session_state.get('uzivatel_jmeno', 'Uživatel')}**"
+    )
+    if st.button("🚪 Odhlásit se"):
+        st.session_state["prihlasen"] = False
+        st.rerun()
+
+
+# --- POMOCNÉ FUNKCE ---
 def formatuj_lokomotivu(text):
     """Sjednotí formát označení lokomotivy tak, aby za prvními 3 číslicemi byla mezera."""
     if not text:
@@ -27,7 +74,6 @@ def ulozit_df_do_bytes(df_to_save):
     df_copy = df_to_save.copy()
 
     if "Datum" in df_copy.columns:
-        # Převedeme Datum na řetězec DD.MM.YYYY pro uložení do Excelu
         df_copy["Datum"] = pd.to_datetime(
             df_copy["Datum"], errors="coerce"
         ).dt.strftime("%d.%m.%Y")
@@ -50,13 +96,11 @@ def load_data():
     else:
         df = pd.read_excel(FILE_PATH)
 
-    # Převod na datový typ datetime
     if "Datum" in df.columns:
         df["Datum"] = pd.to_datetime(
             df["Datum"], dayfirst=True, errors="coerce"
         )
 
-    # Sjednocení formátu lokomotivy pro stávající záznamy
     if "Lokomotiva" in df.columns:
         df["Lokomotiva"] = df["Lokomotiva"].apply(formatuj_lokomotivu)
 
@@ -164,7 +208,7 @@ with tab_novy:
 
                     repo.update_file(
                         contents.path,
-                        f"Přidána nová závada ID {nove_id}",
+                        f"Přidána nová závada ID {nove_id} (autor: {st.session_state.get('uzivatel_jmeno')})",
                         excel_bytes,
                         contents.sha,
                     )
@@ -247,7 +291,7 @@ with tab_edit:
 
                         repo.update_file(
                             contents.path,
-                            f"Úprava závady ID {vybrane_id}",
+                            f"Úprava závady ID {vybrane_id} (autor: {st.session_state.get('uzivatel_jmeno')})",
                             excel_bytes,
                             contents.sha,
                         )
@@ -314,7 +358,7 @@ with tab_smazat:
 
                         repo.update_file(
                             contents.path,
-                            f"Smazána závada ID {vybrane_id_del}",
+                            f"Smazána závada ID {vybrane_id_del} (autor: {st.session_state.get('uzivatel_jmeno')})",
                             excel_bytes,
                             contents.sha,
                         )
