@@ -6,10 +6,23 @@ import pandas as pd
 import streamlit as st
 
 st.set_page_config(
-    page_title="Evidence závad lokomotiv", layout="wide", page_icon="🚆"
+    page_title="Evidence závad lokomotiv", layout="wide", page_icon="pro"
 )
 
 FILE_PATH = "PREDAVKA_ELEKTRONICI_PRO_APPSHEET.xlsx"
+
+
+def ulozit_df_do_excelu(df_to_save):
+    """Pomocná funkce pro bezpečné uložení pandas DataFrame do io.BytesIO"""
+    output = io.BytesIO()
+    # Převedeme datume na text před zápisem, aby otevření v Excelu nevyžadovalo speciální formáty
+    df_write = df_to_save.copy()
+    if "Datum" in df_write.columns:
+        df_write["Datum"] = df_write["Datum"].dt.strftime("%d.%m.%Y")
+
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df_write.to_excel(writer, index=False, sheet_name="Sheet1")
+    return output.getvalue()
 
 
 # Načtení dat přímo z GitHubu
@@ -125,13 +138,7 @@ with tab_novy:
                 upraveny_df = pd.concat([df, novy_radek], ignore_index=True)
 
                 if "GITHUB_TOKEN" in st.secrets:
-                    output = io.BytesIO()
-                    with pd.ExcelWriter(
-                        output, engine="openpyxl"
-                    ) as writer:
-                        upraveny_df.to_excel(
-                            writer, index=False, date_format="DD.MM.YYYY"
-                        )
+                    excel_bytes = ulozit_df_do_excelu(upraveny_df)
 
                     g = github.Github(st.secrets["GITHUB_TOKEN"])
                     repo = g.get_repo(st.secrets["REPO_NAME"])
@@ -140,7 +147,7 @@ with tab_novy:
                     repo.update_file(
                         contents.path,
                         f"Přidána nová závada ID {nove_id}",
-                        output.getvalue(),
+                        excel_bytes,
                         contents.sha,
                     )
                     st.success(
@@ -209,13 +216,7 @@ with tab_edit:
                     df.at[idx, "Poznámka"] = poznamka_edit.strip()
 
                     if "GITHUB_TOKEN" in st.secrets:
-                        output = io.BytesIO()
-                        with pd.ExcelWriter(
-                            output, engine="openpyxl"
-                        ) as writer:
-                            df.to_excel(
-                                writer, index=False, date_format="DD.MM.YYYY"
-                            )
+                        excel_bytes = ulozit_df_do_excelu(df)
 
                         g = github.Github(st.secrets["GITHUB_TOKEN"])
                         repo = g.get_repo(st.secrets["REPO_NAME"])
@@ -224,7 +225,7 @@ with tab_edit:
                         repo.update_file(
                             contents.path,
                             f"Úprava závady ID {vybrane_id}",
-                            output.getvalue(),
+                            excel_bytes,
                             contents.sha,
                         )
                         st.success(
@@ -278,13 +279,7 @@ with tab_smazat:
                     upraveny_df = df[df["ID"] != vybrane_id_del].copy()
 
                     if "GITHUB_TOKEN" in st.secrets:
-                        output = io.BytesIO()
-                        with pd.ExcelWriter(
-                            output, engine="openpyxl"
-                        ) as writer:
-                            upraveny_df.to_excel(
-                                writer, index=False, date_format="DD.MM.YYYY"
-                            )
+                        excel_bytes = ulozit_df_do_excelu(upraveny_df)
 
                         g = github.Github(st.secrets["GITHUB_TOKEN"])
                         repo = g.get_repo(st.secrets["REPO_NAME"])
@@ -293,7 +288,7 @@ with tab_smazat:
                         repo.update_file(
                             contents.path,
                             f"Smazána závada ID {vybrane_id_del}",
-                            output.getvalue(),
+                            excel_bytes,
                             contents.sha,
                         )
                         st.success(
