@@ -45,18 +45,31 @@ def ziskej_info_hlavicka():
     dnes = datetime.now()
     datum_str = dnes.strftime("%d.%m.%Y")
 
-    # Načtení svátku
+    # Načtení svátku s primárním a záložním zdrojem
     svatek_jmeno = "Neznámo"
+
+    # 1. Pokus: SvatkyAPI.cz
     try:
         req = urllib.request.Request(
-            "https://svatek.jdem.cz/json", headers={"User-Agent": "Mozilla/5.0"}
+            "https://svatkyapi.cz/api/day",
+            headers={"User-Agent": "Mozilla/5.0"},
         )
-        with urllib.request.urlopen(req, timeout=3) as resp:
+        with urllib.request.urlopen(req, timeout=4) as resp:
             data = json.loads(resp.read().decode())
-            if data and len(data) > 0:
-                svatek_jmeno = data[0].get("name", "Neznámo")
+            svatek_jmeno = data.get("name", "Neznámo")
     except Exception:
-        pass
+        # 2. Pokus (Záloha): svatek.jdem.cz
+        try:
+            req = urllib.request.Request(
+                "https://svatek.jdem.cz/json",
+                headers={"User-Agent": "Mozilla/5.0"},
+            )
+            with urllib.request.urlopen(req, timeout=4) as resp:
+                data = json.loads(resp.read().decode())
+                if isinstance(data, list) and len(data) > 0:
+                    svatek_jmeno = data[0].get("name", "Neznámo")
+        except Exception:
+            pass
 
     # Načtení počasí pro Valašské Meziříčí (souřadnice: 49.4718, 17.9712)
     pocasi_str = "Neznámo"
@@ -65,7 +78,7 @@ def ziskej_info_hlavicka():
         req_poc = urllib.request.Request(
             url_pocasi, headers={"User-Agent": "Mozilla/5.0"}
         )
-        with urllib.request.urlopen(req_poc, timeout=3) as resp:
+        with urllib.request.urlopen(req_poc, timeout=4) as resp:
             p_data = (
                 json.loads(resp.read().decode())
                 .get("current_weather", {})
