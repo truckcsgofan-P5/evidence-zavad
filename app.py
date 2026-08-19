@@ -66,7 +66,7 @@ def analyzuj_zavadu_gemini(popis_raw):
 
     try:
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model="gemini-3.6-flash",
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json"
@@ -97,7 +97,7 @@ def dotaz_na_gemini(dotaz, df):
 
     try:
         response = client.models.generate_content(
-            model="gemini-2.5-flash", contents=prompt
+            model="gemini-3.6-flash", contents=prompt
         )
         return response.text
     except Exception as e:
@@ -322,7 +322,6 @@ with tab_prehled:
 with tab_novy:
     st.title("➕ Zapsat novou závadu")
 
-    # Pomocné stavy pro předvyplnění AI
     default_kat = st.session_state.get("ai_kategorie", KATEGORIE_LIST[0])
     default_popis = st.session_state.get("ai_popis", "")
     kat_idx = (
@@ -526,7 +525,7 @@ with tab_ai:
 
     if st.button("💬 Zeptat se Gemini", type="primary"):
         if dotaz_user:
-            with st.spinner("Gemini analizuje databázi..."):
+            with st.spinner("Gemini analyzuje databázi..."):
                 odpoved = dotaz_na_gemini(dotaz_user, df)
                 st.markdown("### Odpověď Gemini:")
                 st.info(odpoved)
