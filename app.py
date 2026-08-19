@@ -9,13 +9,12 @@ st.set_page_config(
     page_title="Evidence závad lokomotiv", layout="wide", page_icon="🚆"
 )
 
-# Skrytí vrchního systémového menu a zápatí Streamlitu
+# Skrytí pouze menu Streamlitu a zápatí (ponecháme viditelné tlačítko pro postranní panel)
 st.markdown(
     """
     <style>
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    header {visibility: hidden;}
     </style>
     """,
     unsafe_allow_html=True,
@@ -27,7 +26,6 @@ FILE_PATH = "PREDAVKA_ELEKTRONICI_PRO_APPSHEET.xlsx"
 KATEGORIE_LIST = [
     "Elektrická výzbroj",
     "Mechanická část",
-    "IS - Informační systém",
     "Brzdový systém",
     "Spalovací motor / Pohon",
     "Sdělovací a zabezpečovací technika",
@@ -76,12 +74,25 @@ def prihlaseni_uzivatele():
 if not prihlaseni_uzivatele():
     st.stop()
 
-# --- SIDEBAR: INFORMACE O UŽIVATELI A ODHLÁŠENÍ ---
+# --- HORNÍ LIŠTA: ZOBRAZENÍ UŽIVATELE A ODHLÁŠENÍ (VIDITELNÉ VŽDY) ---
+col_u1, col_u2 = st.columns([5, 1])
+with col_u1:
+    st.caption(
+        f"👤 Přihlášený uživatel: **{st.session_state.get('uzivatel_jmeno', 'Uživatel')}**"
+    )
+with col_u2:
+    if st.button("🚪 Odhlásit se", key="logout_top"):
+        st.session_state["prihlasen"] = False
+        st.rerun()
+
+st.divider()
+
+# --- SIDEBAR: ODHLÁŠENÍ V POSTRANNÍM PANELU ---
 with st.sidebar:
     st.write(
         f"👤 Přihlášen: **{st.session_state.get('uzivatel_jmeno', 'Uživatel')}**"
     )
-    if st.button("🚪 Odhlásit se"):
+    if st.button("🚪 Odhlásit se", key="logout_sidebar"):
         st.session_state["prihlasen"] = False
         st.rerun()
 
