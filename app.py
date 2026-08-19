@@ -13,15 +13,10 @@ FILE_PATH = "PREDAVKA_ELEKTRONICI_PRO_APPSHEET.xlsx"
 
 
 def formatuj_lokomotivu(text):
-    """Sjednotí formát označení lokomotivy tak, aby za prvními 3 číslicemi byla mezera.
-
-    Např. '814190' -> '814 190'
-    """
+    """Sjednotí formát označení lokomotivy tak, aby za prvními 3 číslicemi byla mezera."""
     if not text:
         return ""
-    # Odstranění stávajících mezer
     cisty_text = str(text).replace(" ", "").strip()
-    # Pokud má kód alespoň 4 znaky, vloží se mezera za 3. znak
     if len(cisty_text) > 3:
         return f"{cisty_text[:3]} {cisty_text[3:]}"
     return cisty_text
@@ -150,7 +145,10 @@ with tab_novy:
                         output, engine="openpyxl"
                     ) as writer:
                         upraveny_df.to_excel(
-                            writer, index=False, date_format="DD.MM.YYYY"
+                            writer,
+                            sheet_name="Závady",
+                            index=False,
+                            date_format="DD.MM.YYYY",
                         )
 
                     g = github.Github(st.secrets["GITHUB_TOKEN"])
@@ -235,7 +233,10 @@ with tab_edit:
                             output, engine="openpyxl"
                         ) as writer:
                             df.to_excel(
-                                writer, index=False, date_format="DD.MM.YYYY"
+                                writer,
+                                sheet_name="Závady",
+                                index=False,
+                                date_format="DD.MM.YYYY",
                             )
 
                         g = github.Github(st.secrets["GITHUB_TOKEN"])
@@ -304,7 +305,10 @@ with tab_smazat:
                             output, engine="openpyxl"
                         ) as writer:
                             upraveny_df.to_excel(
-                                writer, index=False, date_format="DD.MM.YYYY"
+                                writer,
+                                sheet_name="Závady",
+                                index=False,
+                                date_format="DD.MM.YYYY",
                             )
 
                         g = github.Github(st.secrets["GITHUB_TOKEN"])
