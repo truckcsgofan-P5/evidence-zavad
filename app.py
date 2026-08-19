@@ -6,23 +6,25 @@ import pandas as pd
 import streamlit as st
 
 st.set_page_config(
-    page_title="Evidence závad lokomotiv", layout="wide", page_icon="pro"
+    page_title="Evidence závad lokomotiv", layout="wide", page_icon="🚆"
 )
 
 FILE_PATH = "PREDAVKA_ELEKTRONICI_PRO_APPSHEET.xlsx"
 
 
-def ulozit_df_do_excelu(df_to_save):
-    """Pomocná funkce pro bezpečné uložení pandas DataFrame do io.BytesIO"""
-    output = io.BytesIO()
-    # Převedeme datume na text před zápisem, aby otevření v Excelu nevyžadovalo speciální formáty
-    df_write = df_to_save.copy()
-    if "Datum" in df_write.columns:
-        df_write["Datum"] = df_write["Datum"].dt.strftime("%d.%m.%Y")
+def formatuj_lokomotivu(text):
+    """Sjednotí formát označení lokomotivy tak, aby za prvními 3 číslicemi byla mezera.
 
-    with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        df_write.to_excel(writer, index=False, sheet_name="Sheet1")
-    return output.getvalue()
+    Např. '814190' -> '814 190'
+    """
+    if not text:
+        return ""
+    # Odstranění stávajících mezer
+    cisty_text = str(text).replace(" ", "").strip()
+    # Pokud má kód alespoň 4 znaky, vloží se mezera za 3. znak
+    if len(cisty_text) > 3:
+        return f"{cisty_text[:3]} {cisty_text[3:]}"
+    return cisty_text
 
 
 # Načtení dat přímo z GitHubu
@@ -41,6 +43,10 @@ def load_data():
         df["Datum"] = pd.to_datetime(
             df["Datum"], dayfirst=True, errors="coerce"
         )
+
+    # Sjednocení formátu lokomotivy pro stávající záznamy
+    if "Lokomotiva" in df.columns:
+        df["Lokomotiva"] = df["Lokomotiva"].apply(formatuj_lokomotivu)
 
     return df
 
@@ -122,12 +128,13 @@ with tab_novy:
                     if not df.empty and "ID" in df
                     else 1
                 )
+                loko_formatted = formatuj_lokomotivu(loko_input)
 
                 novy_radek = pd.DataFrame(
                     [
                         {
                             "ID": nove_id,
-                            "Lokomotiva": loko_input.strip(),
+                            "Lokomotiva": loko_formatted,
                             "Datum": pd.to_datetime(datum_input),
                             "Popis závady": popis_input.strip(),
                             "Poznámka": poznamka_input.strip(),
@@ -138,7 +145,13 @@ with tab_novy:
                 upraveny_df = pd.concat([df, novy_radek], ignore_index=True)
 
                 if "GITHUB_TOKEN" in st.secrets:
-                    excel_bytes = ulozit_df_do_excelu(upraveny_df)
+                    output = io.BytesIO()
+                    with pd.ExcelWriter(
+                        output, engine="openpyxl"
+                    ) as writer:
+                        upraveny_df.to_excel(
+                            writer, index=False, date_format="DD.MM.YYYY"
+                        )
 
                     g = github.Github(st.secrets["GITHUB_TOKEN"])
                     repo = g.get_repo(st.secrets["REPO_NAME"])
@@ -147,11 +160,11 @@ with tab_novy:
                     repo.update_file(
                         contents.path,
                         f"Přidána nová závada ID {nove_id}",
-                        excel_bytes,
+                        output.getvalue(),
                         contents.sha,
                     )
                     st.success(
-                        f"Závada pro lokomotivu {loko_input} byla úspěšně uložena pod ID {nove_id}!"
+                        f"Závada pro lokomotivu {loko_formatted} byla úspěšně uložena pod ID {nove_id}!"
                     )
                     st.cache_data.clear()
             except Exception as e:
@@ -174,9 +187,10 @@ with tab_edit:
         radek = df[df["ID"] == vybrane_id].iloc[0]
 
         puvodni_loko = (
-            str(radek["Lokomotiva"]) if pd.notna(radek["Lokomotiva"]) else ""
+            formatuj_lokomotivu(radek["Lokomotiva"])
+            if pd.notna(radek["Lokomotiva"])
+            else ""
         )
-
         puvodni_datum = (
             radek["Datum"].date()
             if pd.notna(radek["Datum"])
@@ -210,13 +224,19 @@ with tab_edit:
             else:
                 try:
                     idx = df[df["ID"] == vybrane_id].index[0]
-                    df.at[idx, "Lokomotiva"] = loko_edit.strip()
+                    df.at[idx, "Lokomotiva"] = formatuj_lokomotivu(loko_edit)
                     df.at[idx, "Datum"] = pd.to_datetime(datum_edit)
                     df.at[idx, "Popis závady"] = popis_edit.strip()
                     df.at[idx, "Poznámka"] = poznamka_edit.strip()
 
                     if "GITHUB_TOKEN" in st.secrets:
-                        excel_bytes = ulozit_df_do_excelu(df)
+                        output = io.BytesIO()
+                        with pd.ExcelWriter(
+                            output, engine="openpyxl"
+                        ) as writer:
+                            df.to_excel(
+                                writer, index=False, date_format="DD.MM.YYYY"
+                            )
 
                         g = github.Github(st.secrets["GITHUB_TOKEN"])
                         repo = g.get_repo(st.secrets["REPO_NAME"])
@@ -225,7 +245,7 @@ with tab_edit:
                         repo.update_file(
                             contents.path,
                             f"Úprava závady ID {vybrane_id}",
-                            excel_bytes,
+                            output.getvalue(),
                             contents.sha,
                         )
                         st.success(
@@ -279,7 +299,13 @@ with tab_smazat:
                     upraveny_df = df[df["ID"] != vybrane_id_del].copy()
 
                     if "GITHUB_TOKEN" in st.secrets:
-                        excel_bytes = ulozit_df_do_excelu(upraveny_df)
+                        output = io.BytesIO()
+                        with pd.ExcelWriter(
+                            output, engine="openpyxl"
+                        ) as writer:
+                            upraveny_df.to_excel(
+                                writer, index=False, date_format="DD.MM.YYYY"
+                            )
 
                         g = github.Github(st.secrets["GITHUB_TOKEN"])
                         repo = g.get_repo(st.secrets["REPO_NAME"])
@@ -288,7 +314,7 @@ with tab_smazat:
                         repo.update_file(
                             contents.path,
                             f"Smazána závada ID {vybrane_id_del}",
-                            excel_bytes,
+                            output.getvalue(),
                             contents.sha,
                         )
                         st.success(
