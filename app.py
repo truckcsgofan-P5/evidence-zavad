@@ -11,7 +11,21 @@ st.set_page_config(
 FILE_PATH = "PREDAVKA_ELEKTRONICI_PRO_APPSHEET.xlsx"
 
 
-# Načtení dat přímo z GitHubu pro vždy aktuální stav
+def formatuj_datum_str(val):
+    """Pomocná funkce pro sjednocení formátu na DD.MM.RRRR"""
+    if pd.isna(val) or not val:
+        return ""
+    try:
+        # Pokud je již v datetimu nebo standardním řetězci
+        dt = pd.to_datetime(val, dayfirst=True, errors="coerce")
+        if pd.notna(dt):
+            return dt.strftime("%d.%m.%Y")
+    except Exception:
+        pass
+    return str(val).strip()
+
+
+# Načtení dat přímo z GitHubu
 @st.cache_data(ttl=5)
 def load_data():
     if "GITHUB_TOKEN" in st.secrets:
@@ -21,6 +35,11 @@ def load_data():
         df = pd.read_excel(io.BytesIO(file_content.decoded_content))
     else:
         df = pd.read_excel(FILE_PATH)
+
+    # Sjednocení formátu data u všech načtených řádků na DD.MM.RRRR
+    if "Datum" in df.columns:
+        df["Datum"] = df["Datum"].apply(formatuj_datum_str)
+
     return df
 
 
@@ -67,7 +86,9 @@ with tab_novy:
 
     with st.form("form_zavada", clear_on_submit=True):
         loko_input = st.text_input("Označení lokomotivy (např. 814 190):")
-        datum_input = st.date_input("Datum zjištění závady:")
+        datum_input = st.date_input(
+            "Datum zjištění závady:", format="DD.MM.YYYY"
+        )
         popis_input = st.text_area("Popis závady:")
         poznamka_input = st.text_input("Poznámka (volitelné):")
 
@@ -84,6 +105,8 @@ with tab_novy:
                     if not df.empty and "ID" in df
                     else 1
                 )
+
+                # Přísný formát DD.MM.RRRR (např. 05.06.2026)
                 datum_str = datum_input.strftime("%d.%m.%Y")
 
                 # Vytvoření nového řádku
@@ -120,7 +143,7 @@ with tab_novy:
                         contents.sha,
                     )
                     st.success(
-                        f"Závada pro lokomotivu {loko_input} byla úspěšně uložena pod ID {nove_id}!"
+                        f"Závada pro lokomotivu {loko_input} byla úspěšně uložena s datem {datum_str} pod ID {nove_id}!"
                     )
                     st.cache_data.clear()
                 else:
