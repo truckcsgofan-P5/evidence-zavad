@@ -15,6 +15,7 @@ FILE_PATH = "PREDAVKA_ELEKTRONICI_PRO_APPSHEET.xlsx"
 # Zde můžete libovolně přidávat nebo upravovat kategorie
 KATEGORIE_LIST = [
     "Elektrická výzbroj",
+    "IS - Infosystém",
     "Mechanická část",
     "Brzdový systém",
     "Spalovací motor / Pohon",
