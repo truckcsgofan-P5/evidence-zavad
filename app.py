@@ -31,6 +31,7 @@ KATEGORIE_LIST = [
     "Spalovací motor / Pohon",
     "Sdělovací a zabezpečovací technika",
     "Klimatizace / Topení",
+    "WC - systém",
     "Ostatní",
 ]
 
