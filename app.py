@@ -12,30 +12,6 @@ st.set_page_config(
 FILE_PATH = "PREDAVKA_ELEKTRONICI_PRO_APPSHEET.xlsx"
 
 
-def formatuj_datum_str(val):
-    """Sjednotí formát data na DD.MM.RRRR"""
-    if pd.isna(val) or not val:
-        return ""
-    try:
-        dt = pd.to_datetime(val, dayfirst=True, errors="coerce")
-        if pd.notna(dt):
-            return dt.strftime("%d.%m.%Y")
-    except Exception:
-        pass
-    return str(val).strip()
-
-
-def parse_datum_do_objektu(val_str):
-    """Převede řetězec data zpět na objekt pro kalendář"""
-    try:
-        dt = pd.to_datetime(val_str, dayfirst=True, errors="coerce")
-        if pd.notna(dt):
-            return dt.date()
-    except Exception:
-        pass
-    return datetime.today().date()
-
-
 # Načtení dat přímo z GitHubu
 @st.cache_data(ttl=5)
 def load_data():
@@ -47,8 +23,11 @@ def load_data():
     else:
         df = pd.read_excel(FILE_PATH)
 
+    # Převod na datový typ datetime pro chronologické řazení
     if "Datum" in df.columns:
-        df["Datum"] = df["Datum"].apply(formatuj_datum_str)
+        df["Datum"] = pd.to_datetime(
+            df["Datum"], dayfirst=True, errors="coerce"
+        )
 
     return df
 
@@ -93,7 +72,18 @@ with tab_prehled:
         )
         filtr_df = filtr_df[maska]
 
-    st.dataframe(filtr_df, use_container_width=True, height=500)
+    # Zobrazení s českým formátem a chronologickým řazením
+    st.dataframe(
+        filtr_df,
+        use_container_width=True,
+        height=500,
+        column_config={
+            "Datum": st.column_config.DateColumn(
+                "Datum", format="DD.MM.YYYY"
+            ),
+            "ID": st.column_config.NumberColumn("ID", format="%d"),
+        },
+    )
 
 # TAB 2: Formulář pro zadání nové závady
 with tab_novy:
@@ -119,14 +109,13 @@ with tab_novy:
                     if not df.empty and "ID" in df
                     else 1
                 )
-                datum_str = datum_input.strftime("%d.%m.%Y")
 
                 novy_radek = pd.DataFrame(
                     [
                         {
                             "ID": nove_id,
                             "Lokomotiva": loko_input.strip(),
-                            "Datum": datum_str,
+                            "Datum": pd.to_datetime(datum_input),
                             "Popis závady": popis_input.strip(),
                             "Poznámka": poznamka_input.strip(),
                         }
@@ -140,7 +129,9 @@ with tab_novy:
                     with pd.ExcelWriter(
                         output, engine="openpyxl"
                     ) as writer:
-                        upraveny_df.to_excel(writer, index=False)
+                        upraveny_df.to_excel(
+                            writer, index=False, date_format="DD.MM.YYYY"
+                        )
 
                     g = github.Github(st.secrets["GITHUB_TOKEN"])
                     repo = g.get_repo(st.secrets["REPO_NAME"])
@@ -178,7 +169,12 @@ with tab_edit:
         puvodni_loko = (
             str(radek["Lokomotiva"]) if pd.notna(radek["Lokomotiva"]) else ""
         )
-        puvodni_datum = parse_datum_do_objektu(radek["Datum"])
+
+        puvodni_datum = (
+            radek["Datum"].date()
+            if pd.notna(radek["Datum"])
+            else datetime.today().date()
+        )
         puvodni_popis = (
             str(radek["Popis závady"])
             if pd.notna(radek["Popis závady"])
@@ -206,11 +202,9 @@ with tab_edit:
                 st.error("Lokomotiva a popis závady nesmí být prázdné.")
             else:
                 try:
-                    datum_str = datum_edit.strftime("%d.%m.%Y")
-
                     idx = df[df["ID"] == vybrane_id].index[0]
                     df.at[idx, "Lokomotiva"] = loko_edit.strip()
-                    df.at[idx, "Datum"] = datum_str
+                    df.at[idx, "Datum"] = pd.to_datetime(datum_edit)
                     df.at[idx, "Popis závady"] = popis_edit.strip()
                     df.at[idx, "Poznámka"] = poznamka_edit.strip()
 
@@ -219,7 +213,9 @@ with tab_edit:
                         with pd.ExcelWriter(
                             output, engine="openpyxl"
                         ) as writer:
-                            df.to_excel(writer, index=False)
+                            df.to_excel(
+                                writer, index=False, date_format="DD.MM.YYYY"
+                            )
 
                         g = github.Github(st.secrets["GITHUB_TOKEN"])
                         repo = g.get_repo(st.secrets["REPO_NAME"])
@@ -254,10 +250,16 @@ with tab_smazat:
 
         radek_del = df[df["ID"] == vybrane_id_del].iloc[0]
 
+        datum_zobraz = (
+            radek_del["Datum"].strftime("%d.%m.%Y")
+            if pd.notna(radek_del["Datum"])
+            else ""
+        )
+
         st.warning(
             f"**Chystáte se smazat závadu ID {vybrane_id_del}:**\n\n"
             f"* **Lokomotiva:** {radek_del['Lokomotiva']}\n"
-            f"* **Datum:** {radek_del['Datum']}\n"
+            f"* **Datum:** {datum_zobraz}\n"
             f"* **Popis:** {radek_del['Popis závady']}\n"
             f"* **Poznámka:** {radek_del['Poznámka']}"
         )
@@ -280,7 +282,9 @@ with tab_smazat:
                         with pd.ExcelWriter(
                             output, engine="openpyxl"
                         ) as writer:
-                            upraveny_df.to_excel(writer, index=False)
+                            upraveny_df.to_excel(
+                                writer, index=False, date_format="DD.MM.YYYY"
+                            )
 
                         g = github.Github(st.secrets["GITHUB_TOKEN"])
                         repo = g.get_repo(st.secrets["REPO_NAME"])
