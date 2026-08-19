@@ -1,6 +1,10 @@
 from datetime import datetime
+import hmac
 import io
+import json
 import github
+from google import genai
+from google.genai import types
 import openpyxl
 import pandas as pd
 import streamlit as st
@@ -9,7 +13,6 @@ st.set_page_config(
     page_title="Evidence závad lokomotiv", layout="wide", page_icon="🚆"
 )
 
-# Skrytí pouze menu Streamlitu a zápatí (ponecháme viditelné tlačítko pro postranní panel)
 st.markdown(
     """
     <style>
@@ -22,7 +25,6 @@ st.markdown(
 
 FILE_PATH = "PREDAVKA_ELEKTRONICI_PRO_APPSHEET.xlsx"
 
-# --- DEFINICE SEZNAMU KATEGORIÍ ZÁVAD ---
 KATEGORIE_LIST = [
     "Elektrická výzbroj",
     "Mechanická část",
@@ -36,13 +38,75 @@ KATEGORIE_LIST = [
 ]
 
 
-# --- PŘIHLAŠOVACÍ SYSTÉM ---
-def prihlaseni_uzivatele():
-    """Zobrazí přihlašovací formulář, pokud uživatel není přihlášen."""
-    if "prihlasen" not in st.session_state:
-        st.session_state["prihlasen"] = False
+# --- GEMINI AI POMOCNÉ FUNKCE ---
+def získej_gemini_klient():
+    api_key = st.secrets.get("GEMINI_API_KEY")
+    if not api_key:
+        st.error("❌ V `secrets.toml` chybí `GEMINI_API_KEY`!")
+        return None
+    return genai.Client(api_key=api_key)
 
-    if st.session_state["prihlasen"]:
+
+def analyzuj_zavadu_gemini(popis_raw):
+    """Pomocí Gemini vybere kategorii a upraví neformální text na odborný."""
+    client = získej_gemini_klient()
+    if not client:
+        return None
+
+    prompt = f"""
+    Jsi expert na železniční kolejová vozidla a údržbu lokomotiv.
+    Uživatel zadal následující neformální popis závady: "{popis_raw}"
+
+    Úkoly:
+    1. Vyber nejvhodnější kategorii výhradně z tohoto seznamu: {KATEGORIE_LIST}
+    2. Přeformuluj popis do spisovné, profesionální a stručné technické češtiny.
+
+    Vrať odpověď výhradně jako platný JSON objekt s klíči "kategorie" a "upraveny_popis".
+    """
+
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json"
+            ),
+        )
+        return json.loads(response.text)
+    except Exception as e:
+        st.error(f"Chyba při komunikaci s Gemini API: {e}")
+        return None
+
+
+def dotaz_na_gemini(dotaz, df):
+    """Položí dotaz modelu Gemini s kontextem celé databáze v CSV."""
+    client = získej_gemini_klient()
+    if not client:
+        return "Není k dispozici API klíč."
+
+    csv_data = df.to_csv(index=False)
+    prompt = f"""
+    Jsi inteligentní asistent správce lokomotivního parku.
+    Zde jsou aktuální data o závadách ve formátu CSV:
+
+    {csv_data}
+
+    Odpověz věcně, přesně a přehledně v češtině na dotaz uživatele:
+    "{dotaz}"
+    """
+
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.5-flash", contents=prompt
+        )
+        return response.text
+    except Exception as e:
+        return f"Chyba při zpracování dotazu: {e}"
+
+
+# --- AUTENTIZACE ---
+def prihlaseni_uzivatele():
+    if st.session_state.get("prihlasen", False):
         return True
 
     st.title("🔒 Přihlášení do aplikace")
@@ -59,24 +123,21 @@ def prihlaseni_uzivatele():
 
         if submit_login:
             povoleni_uzivatele = st.secrets.get("users", {})
-            if (
-                uzivatel in povoleni_uzivatele
-                and str(povoleni_uzivatele[uzivatel]) == heslo
-            ):
-                st.session_state["prihlasen"] = True
-                st.session_state["uzivatel_jmeno"] = uzivatel
-                st.rerun()
-            else:
-                st.error("❌ Nesprávné uživatelské jméno nebo heslo.")
+            if uzivatel in povoleni_uzivatele:
+                ulozene_heslo = str(povoleni_uzivatele[uzivatel])
+                if hmac.compare_digest(ulozene_heslo, heslo):
+                    st.session_state["prihlasen"] = True
+                    st.session_state["uzivatel_jmeno"] = uzivatel
+                    st.rerun()
 
+            st.error("❌ Nesprávné uživatelské jméno nebo heslo.")
     return False
 
 
-# Pokud uživatel není přihlášen, aplikace dál nepokračuje
 if not prihlaseni_uzivatele():
     st.stop()
 
-# --- HORNÍ LIŠTA: ZOBRAZENÍ UŽIVATELE A ODHLÁŠENÍ (VIDITELNÉ VŽDY) ---
+# --- LIŠTA S UŽIVATELEM ---
 col_u1, col_u2 = st.columns([5, 1])
 with col_u1:
     st.caption(
@@ -89,44 +150,57 @@ with col_u2:
 
 st.divider()
 
-# --- SIDEBAR: ODHLÁŠENÍ V POSTRANNÍM PANELU ---
-with st.sidebar:
-    st.write(
-        f"👤 Přihlášen: **{st.session_state.get('uzivatel_jmeno', 'Uživatel')}**"
-    )
-    if st.button("🚪 Odhlásit se", key="logout_sidebar"):
-        st.session_state["prihlasen"] = False
-        st.rerun()
 
-
-# --- POMOCNÉ FUNKCE ---
+# --- POMOCNÉ FUNKCE PRO SOUBORY ---
 def formatuj_lokomotivu(text):
-    """Sjednotí formát označení lokomotivy tak, aby za prvními 3 číslicemi byla mezera."""
     if not text:
         return ""
     cisty_text = str(text).replace(" ", "").strip()
-    if len(cisty_text) > 3:
-        return f"{cisty_text[:3]} {cisty_text[3:]}"
-    return cisty_text
+    return (
+        f"{cisty_text[:3]} {cisty_text[3:]}"
+        if len(cisty_text) > 3
+        else cisty_text
+    )
 
 
 def ulozit_df_do_bytes(df_to_save):
-    """Bezpečně převede DataFrame na bajty Excelu s českým formátem data."""
     df_copy = df_to_save.copy()
-
     if "Datum" in df_copy.columns:
         df_copy["Datum"] = pd.to_datetime(
             df_copy["Datum"], errors="coerce"
         ).dt.strftime("%d.%m.%Y")
 
     output = io.BytesIO()
-    writer = pd.ExcelWriter(output, engine="openpyxl")
-    df_copy.to_excel(writer, sheet_name="Sheet1", index=False)
-    writer.close()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df_copy.to_excel(writer, sheet_name="Sheet1", index=False)
     return output.getvalue()
 
 
-# Načtení dat přímo z GitHubu
+def ulozit_databazi(df_to_save, commit_msg):
+    try:
+        excel_bytes = ulozit_df_do_bytes(df_to_save)
+        autor = st.session_state.get("uzivatel_jmeno", "Neznámý")
+
+        if "GITHUB_TOKEN" in st.secrets:
+            g = github.Github(st.secrets["GITHUB_TOKEN"])
+            repo = g.get_repo(st.secrets["REPO_NAME"])
+            contents = repo.get_contents(FILE_PATH)
+            repo.update_file(
+                contents.path,
+                f"{commit_msg} (autor: {autor})",
+                excel_bytes,
+                contents.sha,
+            )
+        else:
+            with open(FILE_PATH, "wb") as f:
+                f.write(excel_bytes)
+
+        st.cache_data.clear()
+        return True, None
+    except Exception as e:
+        return False, str(e)
+
+
 @st.cache_data(ttl=5)
 def load_data():
     if "GITHUB_TOKEN" in st.secrets:
@@ -141,61 +215,48 @@ def load_data():
         df["Datum"] = pd.to_datetime(
             df["Datum"], dayfirst=True, errors="coerce"
         )
-
     if "Lokomotiva" in df.columns:
         df["Lokomotiva"] = df["Lokomotiva"].apply(formatuj_lokomotivu)
 
-    # Kontrola existence sloupce Kategorie (pokud v starém Excelu chybí)
-    if "Kategorie" not in df.columns:
-        df["Kategorie"] = "Neuvedeno"
-    else:
-        df["Kategorie"] = df["Kategorie"].fillna("Neuvedeno")
-
+    df["Kategorie"] = (
+        df["Kategorie"].fillna("Neuvedeno")
+        if "Kategorie" in df.columns
+        else "Neuvedeno"
+    )
     return df
 
 
 df = load_data()
 
-# Záložky aplikace
-tab_prehled, tab_novy, tab_edit, tab_smazat = st.tabs(
+# --- ZÁLOŽKY APLIKACE ---
+tab_prehled, tab_novy, tab_edit, tab_smazat, tab_ai = st.tabs(
     [
-        "📋 Přehled a úprava závad",
+        "📋 Přehled a úprava",
         "➕ Přidat novou závadu",
-        "✏️ Detailní úprava závady",
+        "✏️ Detailní úprava",
         "🗑️ Smazat závadu",
+        "🤖 Gemini AI Asistent",
     ]
 )
 
-# TAB 1: Přehled a přímá úprava v tabulce
+# TAB 1: Přehled
 with tab_prehled:
-    st.title("📋 Přehled a úprava závad lokomotiv")
-    st.info(
-        "💡 **Tip:** Hodnoty v tabulce můžete upravovat přímo dvojklikem na buňku. Po dokončení uprav nezapomeňte dole kliknout na tlačítko **Uložit změny v tabulce**."
-    )
-
+    st.title("📋 Přehled a úprava závad")
     col_f1, col_f2, col_f3 = st.columns(3)
     with col_f1:
         seznam_loko = sorted(
             [str(x) for x in df["Lokomotiva"].dropna().unique()]
         )
         vybrane_loko = st.multiselect(
-            "Filtr podle lokomotivy:",
-            options=seznam_loko,
-            placeholder="Vyberte lokomotivy...",
+            "Filtr podle lokomotivy:", options=seznam_loko
         )
     with col_f2:
         vybrane_kategorie = st.multiselect(
-            "Filtr podle kategorie:",
-            options=KATEGORIE_LIST,
-            placeholder="Vyberte kategorie...",
+            "Filtr podle kategorie:", options=KATEGORIE_LIST
         )
     with col_f3:
-        vyhledavani = st.text_input(
-            "Hledat v popisu nebo poznámce:",
-            placeholder="Napište hledaný text...",
-        )
+        vyhledavani = st.text_input("Hledat v popisu nebo poznámce:")
 
-    # Aplikace filtrů
     filtr_df = df.copy()
     if vybrane_loko:
         filtr_df = filtr_df[
@@ -211,13 +272,12 @@ with tab_prehled:
         )
         filtr_df = filtr_df[maska]
 
-    # Interaktivní editační tabulka
     edited_df = st.data_editor(
         filtr_df,
         use_container_width=True,
         height=500,
-        num_rows="fixed",  # Zakáže přidávání/mazání řádků klávesou Delete
-        disabled=["ID"],   # Uzamkne sloupec ID proti přepisu
+        num_rows="fixed",
+        disabled=["ID"],
         column_config={
             "Datum": st.column_config.DateColumn(
                 "Datum", format="DD.MM.YYYY"
@@ -230,60 +290,55 @@ with tab_prehled:
         key="editor_zavad",
     )
 
-    # Tlačítko pro uložení změn provedených v editační tabulce
     if st.button("💾 Uložit změny v tabulce", type="primary"):
-        try:
-            # Aktualizace hlavního DataFrame podle ID z upravené tabulky
-            for idx, row in edited_df.iterrows():
-                zavada_id = row["ID"]
-                main_idx = df[df["ID"] == zavada_id].index
-                if not main_idx.empty:
-                    df.loc[main_idx[0], "Lokomotiva"] = formatuj_lokomotivu(row["Lokomotiva"])
-                    df.loc[main_idx[0], "Kategorie"] = row["Kategorie"]
-                    df.loc[main_idx[0], "Datum"] = pd.to_datetime(row["Datum"])
-                    df.loc[main_idx[0], "Popis závady"] = (
-                        str(row["Popis závady"]).strip()
-                        if pd.notna(row["Popis závady"])
-                        else ""
-                    )
-                    df.loc[main_idx[0], "Poznámka"] = (
-                        str(row["Poznámka"]).strip()
-                        if pd.notna(row["Poznámka"])
-                        else ""
-                    )
-
-            # Uložení změn na GitHub
-            if "GITHUB_TOKEN" in st.secrets:
-                excel_bytes = ulozit_df_do_bytes(df)
-
-                g = github.Github(st.secrets["GITHUB_TOKEN"])
-                repo = g.get_repo(st.secrets["REPO_NAME"])
-                contents = repo.get_contents(FILE_PATH)
-
-                repo.update_file(
-                    contents.path,
-                    f"Hromadná úprava z tabulky (autor: {st.session_state.get('uzivatel_jmeno')})",
-                    excel_bytes,
-                    contents.sha,
+        for idx, row in edited_df.iterrows():
+            main_idx = df[df["ID"] == row["ID"]].index
+            if not main_idx.empty:
+                i = main_idx[0]
+                df.loc[i, "Lokomotiva"] = formatuj_lokomotivu(
+                    row["Lokomotiva"]
                 )
-                st.success("✅ Všechny změny z tabulky byly úspěšně uloženy!")
-                st.cache_data.clear()
-        except Exception as e:
-            st.error(f"Chyba při ukládání změn: {e}")
+                df.loc[i, "Kategorie"] = row["Kategorie"]
+                df.loc[i, "Datum"] = pd.to_datetime(row["Datum"])
+                df.loc[i, "Popis závady"] = (
+                    str(row["Popis závady"]).strip()
+                    if pd.notna(row["Popis závady"])
+                    else ""
+                )
+                df.loc[i, "Poznámka"] = (
+                    str(row["Poznámka"]).strip()
+                    if pd.notna(row["Poznámka"])
+                    else ""
+                )
 
-# TAB 2: Formulář pro zadání nové závady
+        ok, err = ulozit_databazi(df, "Hromadná úprava z tabulky")
+        if ok:
+            st.success("✅ Všechny změny byly uloženy!")
+            st.rerun()
+        else:
+            st.error(f"Chyba při ukládání: {err}")
+
+# TAB 2: Nová závada s podporou Gemini
 with tab_novy:
     st.title("➕ Zapsat novou závadu")
 
-    with st.form("form_zavada", clear_on_submit=True):
+    # Pomocné stavy pro předvyplnění AI
+    default_kat = st.session_state.get("ai_kategorie", KATEGORIE_LIST[0])
+    default_popis = st.session_state.get("ai_popis", "")
+    kat_idx = (
+        KATEGORIE_LIST.index(default_kat)
+        if default_kat in KATEGORIE_LIST
+        else 0
+    )
+
+    with st.form("form_zavada"):
         col_n1, col_n2 = st.columns(2)
         with col_n1:
             loko_input = st.text_input(
-                "Označení lokomotivy (např. 814 190):",
-                placeholder="Např. 814 190",
+                "Označení lokomotivy:", placeholder="Např. 814 190"
             )
             kategorie_input = st.selectbox(
-                "Kategorie závady:", options=KATEGORIE_LIST
+                "Kategorie závady:", options=KATEGORIE_LIST, index=kat_idx
             )
         with col_n2:
             datum_input = st.date_input(
@@ -291,76 +346,82 @@ with tab_novy:
             )
 
         popis_input = st.text_area(
-            "Popis závady:", placeholder="Detailní popis zjištěné závady..."
+            "Popis závady:",
+            value=default_popis,
+            placeholder="Můžete zadat i nespisovně, např.: 'bliká kontrolka tlaku oleje a píská to'...",
         )
         poznamka_input = st.text_input(
-            "Poznámka (volitelné):",
-            placeholder="Např. objednané díly, způsob opravy...",
+            "Poznámka (volitelné):", placeholder="Např. objednané díly..."
         )
 
-        submit = st.form_submit_button("Uložit závadu")
+        col_b1, col_b2 = st.columns([1, 1])
+        with col_b1:
+            submit = st.form_submit_button(
+                "💾 Uložit závadu", type="primary", use_container_width=True
+            )
+        with col_b2:
+            ai_btn = st.form_submit_button(
+                "🪄 Analyzovat text přes Gemini AI", use_container_width=True
+            )
+
+    if ai_btn:
+        if not popis_input:
+            st.warning("Před analýzou vyplňte popis závady.")
+        else:
+            with st.spinner("Gemini analyzuje text..."):
+                res = analyzuj_zavadu_gemini(popis_input)
+                if res:
+                    st.session_state["ai_kategorie"] = res.get(
+                        "kategorie", default_kat
+                    )
+                    st.session_state["ai_popis"] = res.get(
+                        "upraveny_popis", popis_input
+                    )
+                    st.success("✅ Text byl upraven a kategorie navržena!")
+                    st.rerun()
 
     if submit:
         if not loko_input or not popis_input:
             st.error("Vyplňte prosím lokomotivu a popis závady.")
         else:
-            try:
-                nove_id = (
-                    int(df["ID"].max()) + 1
-                    if not df.empty and "ID" in df
-                    else 1
-                )
-                loko_formatted = formatuj_lokomotivu(loko_input)
+            nove_id = (
+                int(df["ID"].max()) + 1 if not df.empty and "ID" in df else 1
+            )
+            novy_radek = pd.DataFrame(
+                [
+                    {
+                        "ID": nove_id,
+                        "Lokomotiva": formatuj_lokomotivu(loko_input),
+                        "Kategorie": kategorie_input,
+                        "Datum": pd.to_datetime(datum_input),
+                        "Popis závady": popis_input.strip(),
+                        "Poznámka": poznamka_input.strip(),
+                    }
+                ]
+            )
 
-                novy_radek = pd.DataFrame(
-                    [
-                        {
-                            "ID": nove_id,
-                            "Lokomotiva": loko_formatted,
-                            "Kategorie": kategorie_input,
-                            "Datum": pd.to_datetime(datum_input),
-                            "Popis závady": popis_input.strip(),
-                            "Poznámka": poznamka_input.strip(),
-                        }
-                    ]
-                )
+            upraveny_df = pd.concat([df, novy_radek], ignore_index=True)
+            ok, err = ulozit_databazi(
+                upraveny_df, f"Přidána nová závada ID {nove_id}"
+            )
+            if ok:
+                st.session_state["ai_popis"] = ""
+                st.session_state["ai_kategorie"] = KATEGORIE_LIST[0]
+                st.success(f"Závada byla uložena pod ID {nove_id}!")
+                st.rerun()
+            else:
+                st.error(f"Chyba při ukládání: {err}")
 
-                upraveny_df = pd.concat([df, novy_radek], ignore_index=True)
-
-                if "GITHUB_TOKEN" in st.secrets:
-                    excel_bytes = ulozit_df_do_bytes(upraveny_df)
-
-                    g = github.Github(st.secrets["GITHUB_TOKEN"])
-                    repo = g.get_repo(st.secrets["REPO_NAME"])
-                    contents = repo.get_contents(FILE_PATH)
-
-                    repo.update_file(
-                        contents.path,
-                        f"Přidána nová závada ID {nove_id} (autor: {st.session_state.get('uzivatel_jmeno')})",
-                        excel_bytes,
-                        contents.sha,
-                    )
-                    st.success(
-                        f"Závada pro lokomotivu {loko_formatted} byla úspěšně uložena pod ID {nove_id}!"
-                    )
-                    st.cache_data.clear()
-            except Exception as e:
-                st.error(f"Chyba při ukládání: {e}")
-
-# TAB 3: Formulář pro detailní úpravu stávající závady
+# TAB 3: Detailní úprava
 with tab_edit:
     st.title("✏️ Úprava existující závady")
-
     if df.empty or "ID" not in df.columns:
         st.warning("V databázi nejsou žádné záznamy k úpravě.")
     else:
         seznam_id = df["ID"].dropna().astype(int).tolist()
         vybrane_id = st.selectbox(
-            "Vyberte ID závady, kterou chcete upravit:",
-            options=seznam_id,
-            key="select_edit_id",
+            "Vyberte ID závady k úpravě:", options=seznam_id
         )
-
         radek = df[df["ID"] == vybrane_id].iloc[0]
 
         puvodni_loko = (
@@ -368,7 +429,6 @@ with tab_edit:
             if pd.notna(radek["Lokomotiva"])
             else ""
         )
-
         puvodni_kat = (
             str(radek["Kategorie"]) if pd.notna(radek["Kategorie"]) else ""
         )
@@ -378,139 +438,97 @@ with tab_edit:
             else 0
         )
 
-        if pd.notna(radek["Datum"]):
-            try:
-                puvodni_datum = pd.to_datetime(radek["Datum"]).date()
-            except Exception:
-                puvodni_datum = datetime.today().date()
-        else:
-            puvodni_datum = datetime.today().date()
-
-        puvodni_popis = (
-            str(radek["Popis závady"])
-            if pd.notna(radek["Popis závady"])
-            else ""
-        )
-        puvodni_poznamka = (
-            str(radek["Poznámka"]) if pd.notna(radek["Poznámka"]) else ""
+        puvodni_datum = (
+            pd.to_datetime(radek["Datum"]).date()
+            if pd.notna(radek["Datum"])
+            and not pd.isna(pd.to_datetime(radek["Datum"]))
+            else datetime.today().date()
         )
 
         with st.form("form_edit_zavada"):
-            st.info(f"Úprava závady ID: **{vybrane_id}**")
             col_e1, col_e2 = st.columns(2)
             with col_e1:
                 loko_edit = st.text_input("Lokomotiva:", value=puvodni_loko)
                 kategorie_edit = st.selectbox(
-                    "Kategorie závady:", options=KATEGORIE_LIST, index=kat_index
+                    "Kategorie:", options=KATEGORIE_LIST, index=kat_index
                 )
             with col_e2:
                 datum_edit = st.date_input(
                     "Datum:", value=puvodni_datum, format="DD.MM.YYYY"
                 )
 
-            popis_edit = st.text_area("Popis závady:", value=puvodni_popis)
+            popis_edit = st.text_area(
+                "Popis závady:", value=str(radek.get("Popis závady", ""))
+            )
             poznamka_edit = st.text_input(
-                "Poznámka (např. stav opravy):", value=puvodni_poznamka
+                "Poznámka:", value=str(radek.get("Poznámka", ""))
             )
 
             submit_edit = st.form_submit_button("Uložit změny")
 
         if submit_edit:
-            if not loko_edit or not popis_edit:
-                st.error("Lokomotiva a popis závady nesmí být prázdné.")
+            idx = df[df["ID"] == vybrane_id].index[0]
+            df.at[idx, "Lokomotiva"] = formatuj_lokomotivu(loko_edit)
+            df.at[idx, "Kategorie"] = kategorie_edit
+            df.at[idx, "Datum"] = pd.to_datetime(datum_edit)
+            df.at[idx, "Popis závady"] = popis_edit.strip()
+            df.at[idx, "Poznámka"] = poznamka_edit.strip()
+
+            ok, err = ulozit_databazi(df, f"Úprava závady ID {vybrane_id}")
+            if ok:
+                st.success(f"Závada ID {vybrane_id} byla aktualizována!")
+                st.rerun()
             else:
-                try:
-                    idx = df[df["ID"] == vybrane_id].index[0]
-                    df.at[idx, "Lokomotiva"] = formatuj_lokomotivu(loko_edit)
-                    df.at[idx, "Kategorie"] = kategorie_edit
-                    df.at[idx, "Datum"] = pd.to_datetime(datum_edit)
-                    df.at[idx, "Popis závady"] = popis_edit.strip()
-                    df.at[idx, "Poznámka"] = poznamka_edit.strip()
+                st.error(f"Chyba při ukládání: {err}")
 
-                    if "GITHUB_TOKEN" in st.secrets:
-                        excel_bytes = ulozit_df_do_bytes(df)
-
-                        g = github.Github(st.secrets["GITHUB_TOKEN"])
-                        repo = g.get_repo(st.secrets["REPO_NAME"])
-                        contents = repo.get_contents(FILE_PATH)
-
-                        repo.update_file(
-                            contents.path,
-                            f"Úprava závady ID {vybrane_id} (autor: {st.session_state.get('uzivatel_jmeno')})",
-                            excel_bytes,
-                            contents.sha,
-                        )
-                        st.success(
-                            f"Závada ID {vybrane_id} byla úspěšně aktualizována!"
-                        )
-                        st.cache_data.clear()
-                except Exception as e:
-                    st.error(f"Chyba při ukládání změn: {e}")
-
-# TAB 4: Smazat závadu
+# TAB 4: Smazat
 with tab_smazat:
     st.title("🗑️ Odstranění závady")
-
     if df.empty or "ID" not in df.columns:
         st.warning("V databázi nejsou žádné záznamy ke smazání.")
     else:
         seznam_id_del = df["ID"].dropna().astype(int).tolist()
         vybrane_id_del = st.selectbox(
-            "Vyberte ID závady, kterou chcete trvale smazat:",
-            options=seznam_id_del,
-            key="select_del_id",
+            "Vyberte ID závady k smazání:", options=seznam_id_del
         )
-
         radek_del = df[df["ID"] == vybrane_id_del].iloc[0]
 
-        if pd.notna(radek_del["Datum"]):
-            try:
-                datum_zobraz = pd.to_datetime(radek_del["Datum"]).strftime(
-                    "%d.%m.%Y"
-                )
-            except Exception:
-                datum_zobraz = str(radek_del["Datum"])
-        else:
-            datum_zobraz = ""
-
         st.warning(
-            f"**Chystáte se smazat závadu ID {vybrane_id_del}:**\n\n"
-            f"* **Lokomotiva:** {radek_del['Lokomotiva']}\n"
-            f"* **Kategorie:** {radek_del.get('Kategorie', 'Neuvedeno')}\n"
-            f"* **Datum:** {datum_zobraz}\n"
-            f"* **Popis:** {radek_del['Popis závady']}\n"
-            f"* **Poznámka:** {radek_del['Poznámka']}"
+            f"**Smazat závadu ID {vybrane_id_del} pro lokomotivu {radek_del['Lokomotiva']}?**"
         )
-
-        potvrzeni = st.checkbox(
-            f"Rozumím, opravdu chci trvale smazat závadu ID {vybrane_id_del}"
-        )
+        potvrzeni = st.checkbox("Rozumím, opravdu chci trvale smazat")
 
         if st.button("🗑️ Trvale smazat záznam", type="primary"):
             if not potvrzeni:
-                st.error(
-                    "Pro smazání musíte nejprve zaškrtnout potvrzovací políčko."
-                )
+                st.error("Zaškrtněte potvrzovací políčko.")
             else:
-                try:
-                    upraveny_df = df[df["ID"] != vybrane_id_del].copy()
+                upraveny_df = df[df["ID"] != vybrane_id_del].copy()
+                ok, err = ulozit_databazi(
+                    upraveny_df, f"Smazána závada ID {vybrane_id_del}"
+                )
+                if ok:
+                    st.success("Záznam byl smazán!")
+                    st.rerun()
+                else:
+                    st.error(f"Chyba: {err}")
 
-                    if "GITHUB_TOKEN" in st.secrets:
-                        excel_bytes = ulozit_df_do_bytes(upraveny_df)
+# TAB 5: Gemini AI Chat nad databází
+with tab_ai:
+    st.title("🤖 Gemini AI Asistent")
+    st.caption(
+        "Ptejte se na statistiky, historii oprava nebo doporučení k celému parku lokomotiv."
+    )
 
-                        g = github.Github(st.secrets["GITHUB_TOKEN"])
-                        repo = g.get_repo(st.secrets["REPO_NAME"])
-                        contents = repo.get_contents(FILE_PATH)
+    dotaz_user = st.text_input(
+        "Váš dotaz pro AI:",
+        placeholder="Např. Jaké byly nejčastější závady na lokomotivách v kategorii Klimatizace?",
+    )
 
-                        repo.update_file(
-                            contents.path,
-                            f"Smazána závada ID {vybrane_id_del} (autor: {st.session_state.get('uzivatel_jmeno')})",
-                            excel_bytes,
-                            contents.sha,
-                        )
-                        st.success(
-                            f"Závada ID {vybrane_id_del} byla úspěšně smazána!"
-                        )
-                        st.cache_data.clear()
-                except Exception as e:
-                    st.error(f"Chyba při mazání záznamu: {e}")
+    if st.button("💬 Zeptat se Gemini", type="primary"):
+        if dotaz_user:
+            with st.spinner("Gemini analizuje databázi..."):
+                odpoved = dotaz_na_gemini(dotaz_user, df)
+                st.markdown("### Odpověď Gemini:")
+                st.info(odpoved)
+        else:
+            st.warning("Napište dotaz.")
