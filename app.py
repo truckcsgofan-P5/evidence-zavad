@@ -2,6 +2,7 @@ from datetime import datetime
 import hmac
 import io
 import json
+import urllib.request
 import github
 from google import genai
 from google.genai import types
@@ -36,6 +37,46 @@ KATEGORIE_LIST = [
     "WC - systém",
     "Ostatní",
 ]
+
+
+# --- POMOCNÁ FUNKCE PRO DATUM, SVÁTEK A POČASÍ ---
+@st.cache_data(ttl=1800)
+def ziskej_info_hlavicka():
+    dnes = datetime.now()
+    datum_str = dnes.strftime("%d.%m.%Y")
+
+    # Načtení svátku
+    svatek_jmeno = "Neznámo"
+    try:
+        req = urllib.request.Request(
+            "https://svatek.jdem.cz/json", headers={"User-Agent": "Mozilla/5.0"}
+        )
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            data = json.loads(resp.read().decode())
+            if data and len(data) > 0:
+                svatek_jmeno = data[0].get("name", "Neznámo")
+    except Exception:
+        pass
+
+    # Načtení počasí pro Valašské Meziříčí (souřadnice: 49.4718, 17.9712)
+    pocasi_str = "Neznámo"
+    try:
+        url_pocasi = "https://api.open-meteo.com/v1/forecast?latitude=49.4718&longitude=17.9712&current_weather=true"
+        req_poc = urllib.request.Request(
+            url_pocasi, headers={"User-Agent": "Mozilla/5.0"}
+        )
+        with urllib.request.urlopen(req_poc, timeout=3) as resp:
+            p_data = (
+                json.loads(resp.read().decode())
+                .get("current_weather", {})
+                .get("temperature")
+            )
+            if p_data is not None:
+                pocasi_str = f"{p_data} °C"
+    except Exception:
+        pass
+
+    return datum_str, svatek_jmeno, pocasi_str
 
 
 # --- GEMINI AI POMOCNÉ FUNKCE ---
@@ -137,7 +178,7 @@ def prihlaseni_uzivatele():
 if not prihlaseni_uzivatele():
     st.stop()
 
-# --- LIŠTA S UŽIVATELEM ---
+# --- LIŠTA S UŽIVATELEM A INFORMACEMI ---
 col_u1, col_u2 = st.columns([5, 1])
 with col_u1:
     st.caption(
@@ -147,6 +188,13 @@ with col_u2:
     if st.button("🚪 Odhlásit se", key="logout_top"):
         st.session_state["prihlasen"] = False
         st.rerun()
+
+# Načtení a zobrazení dnešních informací (Datum, Svátek, Počasí)
+datum_dnes, svatek_dnes, pocasi_valmez = ziskej_info_hlavicka()
+col_i1, col_i2, col_i3 = st.columns(3)
+col_i1.info(f"📅 **Dnes je:** {datum_dnes}")
+col_i2.info(f"🎉 **Svátek má:** {svatek_dnes}")
+col_i3.info(f"🌤️ **Val. Meziříčí:** {pocasi_valmez}")
 
 st.divider()
 
