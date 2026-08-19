@@ -178,23 +178,23 @@ def prihlaseni_uzivatele():
 if not prihlaseni_uzivatele():
     st.stop()
 
-# --- LIŠTA S UŽIVATELEM A INFORMACEMI ---
-col_u1, col_u2 = st.columns([5, 1])
-with col_u1:
+# --- COMPACT LIŠTA S UŽIVATELEM A INFORMACEMI ---
+datum_dnes, svatek_dnes, pocasi_valmez = ziskej_info_hlavicka()
+
+col_info, col_btn = st.columns([5, 1], vertical_alignment="bottom")
+
+with col_info:
     st.caption(
-        f"👤 Přihlášený uživatel: **{st.session_state.get('uzivatel_jmeno', 'Uživatel')}**"
+        f"👤 Přihlášen: **{st.session_state.get('uzivatel_jmeno', 'Uživatel')}**  |  "
+        f"📅 {datum_dnes}  |  "
+        f"🎉 Svátek: {svatek_dnes}  |  "
+        f"🌤️ Počasí (Val. Meziříčí): {pocasi_valmez}"
     )
-with col_u2:
-    if st.button("🚪 Odhlásit se", key="logout_top"):
+
+with col_btn:
+    if st.button("🚪 Odhlásit", key="logout_top", use_container_width=True):
         st.session_state["prihlasen"] = False
         st.rerun()
-
-# Načtení a zobrazení dnešních informací (Datum, Svátek, Počasí)
-datum_dnes, svatek_dnes, pocasi_valmez = ziskej_info_hlavicka()
-col_i1, col_i2, col_i3 = st.columns(3)
-col_i1.info(f"📅 **Dnes je:** {datum_dnes}")
-col_i2.info(f"🎉 **Svátek má:** {svatek_dnes}")
-col_i3.info(f"🌤️ **Val. Meziříčí:** {pocasi_valmez}")
 
 st.divider()
 
@@ -563,7 +563,7 @@ with tab_smazat:
 with tab_ai:
     st.title("🤖 Gemini AI Asistent")
     st.caption(
-        "Ptejte se na statistiky, historii oprava nebo doporučení k celému parku lokomotiv."
+        "Ptejte se na statistiky, historii oprav nebo doporučení k celému parku lokomotiv."
     )
 
     dotaz_user = st.text_input(
