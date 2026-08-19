@@ -23,13 +23,13 @@ def formatuj_lokomotivu(text):
 
 
 def ulozit_df_do_bytes(df_to_save):
-    """Bezpečně převede DataFrame na bajty Excelu bez chyby openpyxl."""
+    """Bezpečně převede DataFrame na bajty Excelu s českým formátem data."""
     df_copy = df_to_save.copy()
 
-    # Převedeme Datum na řetězec ve formátu YYYY-MM-DD nebo DD.MM.YYYY pro přímý zápis
+    # Převod data na formátovanou řetězcovou podobu DD.MM.YYYY
     if "Datum" in df_copy.columns:
         df_copy["Datum"] = pd.to_datetime(df_copy["Datum"]).dt.strftime(
-            "%Y-%m-%d"
+            "%d.%m.%Y"
         )
 
     output = io.BytesIO()
@@ -147,7 +147,7 @@ with tab_novy:
                         {
                             "ID": nove_id,
                             "Lokomotiva": loko_formatted,
-                            "Datum": pd.to_datetime(datum_input),
+                            "Datum": datum_input,
                             "Popis závady": popis_input.strip(),
                             "Poznámka": poznamka_input.strip(),
                         }
@@ -199,7 +199,7 @@ with tab_edit:
         )
         puvodni_datum = (
             radek["Datum"].date()
-            if pd.notna(radek["Datum"])
+            if pd.notna(radek["Datum"]) and hasattr(radek["Datum"], "date")
             else datetime.today().date()
         )
         puvodni_popis = (
@@ -231,7 +231,7 @@ with tab_edit:
                 try:
                     idx = df[df["ID"] == vybrane_id].index[0]
                     df.at[idx, "Lokomotiva"] = formatuj_lokomotivu(loko_edit)
-                    df.at[idx, "Datum"] = pd.to_datetime(datum_edit)
+                    df.at[idx, "Datum"] = datum_edit
                     df.at[idx, "Popis závady"] = popis_edit.strip()
                     df.at[idx, "Poznámka"] = poznamka_edit.strip()
 
@@ -273,8 +273,8 @@ with tab_smazat:
 
         datum_zobraz = (
             radek_del["Datum"].strftime("%d.%m.%Y")
-            if pd.notna(radek_del["Datum"])
-            else ""
+            if pd.notna(radek_del["Datum"]) and hasattr(radek_del["Datum"], "strftime")
+            else str(radek_del["Datum"]) if pd.notna(radek_del["Datum"]) else ""
         )
 
         st.warning(
