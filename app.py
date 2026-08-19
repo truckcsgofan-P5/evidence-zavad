@@ -9,14 +9,25 @@ st.set_page_config(
     page_title="Evidence závad lokomotiv", layout="wide", page_icon="🚆"
 )
 
+# Skrytí vrchního systémového menu a zápatí Streamlitu
+st.markdown(
+    """
+    <style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    </style>
+    """,
+    unsafe_allow_index=True,
+)
+
 FILE_PATH = "PREDAVKA_ELEKTRONICI_PRO_APPSHEET.xlsx"
 
 # --- DEFINICE SEZNAMU KATEGORIÍ ZÁVAD ---
-# Zde můžete libovolně přidávat nebo upravovat kategorie
 KATEGORIE_LIST = [
     "Elektrická výzbroj",
-    "IS - Infosystém",
     "Mechanická část",
+    "IS - Informační systém",
     "Brzdový systém",
     "Spalovací motor / Pohon",
     "Sdělovací a zabezpečovací technika",
@@ -38,8 +49,12 @@ def prihlaseni_uzivatele():
     st.info("Pro přístup k evidenci závad se prosím přihlaste.")
 
     with st.form("login_form"):
-        uzivatel = st.text_input("Uživatelské jméno:")
-        heslo = st.text_input("Heslo:", type="password")
+        uzivatel = st.text_input(
+            "Uživatelské jméno:", placeholder="Zadejte uživatelské jméno"
+        )
+        heslo = st.text_input(
+            "Heslo:", type="password", placeholder="Zadejte heslo"
+        )
         submit_login = st.form_submit_button("Přihlásit se")
 
         if submit_login:
@@ -128,7 +143,7 @@ def load_data():
 
 df = load_data()
 
-# 4 záložky v aplikaci
+# Záložky aplikace
 tab_prehled, tab_novy, tab_edit, tab_smazat = st.tabs(
     [
         "📋 Přehled závad",
@@ -140,7 +155,7 @@ tab_prehled, tab_novy, tab_edit, tab_smazat = st.tabs(
 
 # TAB 1: Přehled
 with tab_prehled:
-    st.title("GPS Přehled závad lokomotiv")
+    st.title("📋 Přehled závad lokomotiv")
 
     col_f1, col_f2, col_f3 = st.columns(3)
     with col_f1:
@@ -148,14 +163,21 @@ with tab_prehled:
             [str(x) for x in df["Lokomotiva"].dropna().unique()]
         )
         vybrane_loko = st.multiselect(
-            "Filtr podle lokomotivy:", options=seznam_loko
+            "Filtr podle lokomotivy:",
+            options=seznam_loko,
+            placeholder="Vyberte lokomotivy...",
         )
     with col_f2:
         vybrane_kategorie = st.multiselect(
-            "Filtr podle kategorie:", options=KATEGORIE_LIST
+            "Filtr podle kategorie:",
+            options=KATEGORIE_LIST,
+            placeholder="Vyberte kategorie...",
         )
     with col_f3:
-        vyhledavani = st.text_input("Hledat v popisu nebo poznámce:")
+        vyhledavani = st.text_input(
+            "Hledat v popisu nebo poznámce:",
+            placeholder="Napište hledaný text...",
+        )
 
     filtr_df = df.copy()
     if vybrane_loko:
@@ -194,7 +216,10 @@ with tab_novy:
     with st.form("form_zavada", clear_on_submit=True):
         col_n1, col_n2 = st.columns(2)
         with col_n1:
-            loko_input = st.text_input("Označení lokomotivy (např. 814 190):")
+            loko_input = st.text_input(
+                "Označení lokomotivy (např. 814 190):",
+                placeholder="Např. 814 190",
+            )
             kategorie_input = st.selectbox(
                 "Kategorie závady:", options=KATEGORIE_LIST
             )
@@ -203,8 +228,13 @@ with tab_novy:
                 "Datum zjištění závady:", format="DD.MM.YYYY"
             )
 
-        popis_input = st.text_area("Popis závady:")
-        poznamka_input = st.text_input("Poznámka (volitelné):")
+        popis_input = st.text_area(
+            "Popis závady:", placeholder="Detailní popis zjištěné závady..."
+        )
+        poznamka_input = st.text_input(
+            "Poznámka (volitelné):",
+            placeholder="Např. objednané díly, způsob opravy...",
+        )
 
         submit = st.form_submit_button("Uložit závadu")
 
