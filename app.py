@@ -26,11 +26,11 @@ def ulozit_df_do_bytes(df_to_save):
     """Bezpečně převede DataFrame na bajty Excelu s českým formátem data."""
     df_copy = df_to_save.copy()
 
-    # Převod data na formátovanou řetězcovou podobu DD.MM.YYYY
     if "Datum" in df_copy.columns:
-        df_copy["Datum"] = pd.to_datetime(df_copy["Datum"]).dt.strftime(
-            "%d.%m.%Y"
-        )
+        # Převedeme Datum na řetězec DD.MM.YYYY pro uložení do Excelu
+        df_copy["Datum"] = pd.to_datetime(
+            df_copy["Datum"], errors="coerce"
+        ).dt.strftime("%d.%m.%Y")
 
     output = io.BytesIO()
     writer = pd.ExcelWriter(output, engine="openpyxl")
@@ -50,7 +50,7 @@ def load_data():
     else:
         df = pd.read_excel(FILE_PATH)
 
-    # Převod na datový typ datetime pro chronologické řazení
+    # Převod na datový typ datetime
     if "Datum" in df.columns:
         df["Datum"] = pd.to_datetime(
             df["Datum"], dayfirst=True, errors="coerce"
@@ -103,7 +103,6 @@ with tab_prehled:
         )
         filtr_df = filtr_df[maska]
 
-    # Zobrazení s českým formátem a chronologickým řazením
     st.dataframe(
         filtr_df,
         use_container_width=True,
@@ -147,7 +146,7 @@ with tab_novy:
                         {
                             "ID": nove_id,
                             "Lokomotiva": loko_formatted,
-                            "Datum": datum_input,
+                            "Datum": pd.to_datetime(datum_input),
                             "Popis závady": popis_input.strip(),
                             "Poznámka": poznamka_input.strip(),
                         }
@@ -197,11 +196,15 @@ with tab_edit:
             if pd.notna(radek["Lokomotiva"])
             else ""
         )
-        puvodni_datum = (
-            radek["Datum"].date()
-            if pd.notna(radek["Datum"]) and hasattr(radek["Datum"], "date")
-            else datetime.today().date()
-        )
+
+        if pd.notna(radek["Datum"]):
+            try:
+                puvodni_datum = pd.to_datetime(radek["Datum"]).date()
+            except Exception:
+                puvodni_datum = datetime.today().date()
+        else:
+            puvodni_datum = datetime.today().date()
+
         puvodni_popis = (
             str(radek["Popis závady"])
             if pd.notna(radek["Popis závady"])
@@ -231,7 +234,7 @@ with tab_edit:
                 try:
                     idx = df[df["ID"] == vybrane_id].index[0]
                     df.at[idx, "Lokomotiva"] = formatuj_lokomotivu(loko_edit)
-                    df.at[idx, "Datum"] = datum_edit
+                    df.at[idx, "Datum"] = pd.to_datetime(datum_edit)
                     df.at[idx, "Popis závady"] = popis_edit.strip()
                     df.at[idx, "Poznámka"] = poznamka_edit.strip()
 
@@ -271,11 +274,15 @@ with tab_smazat:
 
         radek_del = df[df["ID"] == vybrane_id_del].iloc[0]
 
-        datum_zobraz = (
-            radek_del["Datum"].strftime("%d.%m.%Y")
-            if pd.notna(radek_del["Datum"]) and hasattr(radek_del["Datum"], "strftime")
-            else str(radek_del["Datum"]) if pd.notna(radek_del["Datum"]) else ""
-        )
+        if pd.notna(radek_del["Datum"]):
+            try:
+                datum_zobraz = pd.to_datetime(radek_del["Datum"]).strftime(
+                    "%d.%m.%Y"
+                )
+            except Exception:
+                datum_zobraz = str(radek_del["Datum"])
+        else:
+            datum_zobraz = ""
 
         st.warning(
             f"**Chystáte se smazat závadu ID {vybrane_id_del}:**\n\n"
