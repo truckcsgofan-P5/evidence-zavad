@@ -22,6 +22,23 @@ def formatuj_lokomotivu(text):
     return cisty_text
 
 
+def ulozit_df_do_bytes(df_to_save):
+    """Bezpečně převede DataFrame na bajty Excelu bez chyby openpyxl."""
+    df_copy = df_to_save.copy()
+
+    # Převedeme Datum na řetězec ve formátu YYYY-MM-DD nebo DD.MM.YYYY pro přímý zápis
+    if "Datum" in df_copy.columns:
+        df_copy["Datum"] = pd.to_datetime(df_copy["Datum"]).dt.strftime(
+            "%Y-%m-%d"
+        )
+
+    output = io.BytesIO()
+    writer = pd.ExcelWriter(output, engine="openpyxl")
+    df_copy.to_excel(writer, sheet_name="Sheet1", index=False)
+    writer.close()
+    return output.getvalue()
+
+
 # Načtení dat přímo z GitHubu
 @st.cache_data(ttl=5)
 def load_data():
@@ -140,16 +157,7 @@ with tab_novy:
                 upraveny_df = pd.concat([df, novy_radek], ignore_index=True)
 
                 if "GITHUB_TOKEN" in st.secrets:
-                    output = io.BytesIO()
-                    with pd.ExcelWriter(
-                        output, engine="openpyxl"
-                    ) as writer:
-                        upraveny_df.to_excel(
-                            writer,
-                            sheet_name="Závady",
-                            index=False,
-                            date_format="DD.MM.YYYY",
-                        )
+                    excel_bytes = ulozit_df_do_bytes(upraveny_df)
 
                     g = github.Github(st.secrets["GITHUB_TOKEN"])
                     repo = g.get_repo(st.secrets["REPO_NAME"])
@@ -158,7 +166,7 @@ with tab_novy:
                     repo.update_file(
                         contents.path,
                         f"Přidána nová závada ID {nove_id}",
-                        output.getvalue(),
+                        excel_bytes,
                         contents.sha,
                     )
                     st.success(
@@ -228,16 +236,7 @@ with tab_edit:
                     df.at[idx, "Poznámka"] = poznamka_edit.strip()
 
                     if "GITHUB_TOKEN" in st.secrets:
-                        output = io.BytesIO()
-                        with pd.ExcelWriter(
-                            output, engine="openpyxl"
-                        ) as writer:
-                            df.to_excel(
-                                writer,
-                                sheet_name="Závady",
-                                index=False,
-                                date_format="DD.MM.YYYY",
-                            )
+                        excel_bytes = ulozit_df_do_bytes(df)
 
                         g = github.Github(st.secrets["GITHUB_TOKEN"])
                         repo = g.get_repo(st.secrets["REPO_NAME"])
@@ -246,7 +245,7 @@ with tab_edit:
                         repo.update_file(
                             contents.path,
                             f"Úprava závady ID {vybrane_id}",
-                            output.getvalue(),
+                            excel_bytes,
                             contents.sha,
                         )
                         st.success(
@@ -300,16 +299,7 @@ with tab_smazat:
                     upraveny_df = df[df["ID"] != vybrane_id_del].copy()
 
                     if "GITHUB_TOKEN" in st.secrets:
-                        output = io.BytesIO()
-                        with pd.ExcelWriter(
-                            output, engine="openpyxl"
-                        ) as writer:
-                            upraveny_df.to_excel(
-                                writer,
-                                sheet_name="Závady",
-                                index=False,
-                                date_format="DD.MM.YYYY",
-                            )
+                        excel_bytes = ulozit_df_do_bytes(upraveny_df)
 
                         g = github.Github(st.secrets["GITHUB_TOKEN"])
                         repo = g.get_repo(st.secrets["REPO_NAME"])
@@ -318,7 +308,7 @@ with tab_smazat:
                         repo.update_file(
                             contents.path,
                             f"Smazána závada ID {vybrane_id_del}",
-                            output.getvalue(),
+                            excel_bytes,
                             contents.sha,
                         )
                         st.success(
