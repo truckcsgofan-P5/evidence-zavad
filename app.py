@@ -55,9 +55,14 @@ def load_data():
 
 df = load_data()
 
-# Tři záložky v aplikaci
-tab_prehled, tab_novy, tab_edit = st.tabs(
-    ["📋 Přehled závad", "➕ Přidat novou závadu", "✏️ Úprava závady"]
+# 4 záložky v aplikaci
+tab_prehled, tab_novy, tab_edit, tab_smazat = st.tabs(
+    [
+        "📋 Přehled závad",
+        "➕ Přidat novou závadu",
+        "✏️ Úprava závady",
+        "🗑️ Smazat závadu",
+    ]
 )
 
 # TAB 1: Přehled
@@ -168,7 +173,6 @@ with tab_edit:
             key="select_edit_id",
         )
 
-        # Načtení stávajících dat vybraného řádku
         radek = df[df["ID"] == vybrane_id].iloc[0]
 
         puvodni_loko = (
@@ -204,14 +208,12 @@ with tab_edit:
                 try:
                     datum_str = datum_edit.strftime("%d.%m.%Y")
 
-                    # Aktualizace řádku v DataFrame
                     idx = df[df["ID"] == vybrane_id].index[0]
                     df.at[idx, "Lokomotiva"] = loko_edit.strip()
                     df.at[idx, "Datum"] = datum_str
                     df.at[idx, "Popis závady"] = popis_edit.strip()
                     df.at[idx, "Poznámka"] = poznamka_edit.strip()
 
-                    # Uložení změn na GitHub
                     if "GITHUB_TOKEN" in st.secrets:
                         output = io.BytesIO()
                         with pd.ExcelWriter(
@@ -235,3 +237,64 @@ with tab_edit:
                         st.cache_data.clear()
                 except Exception as e:
                     st.error(f"Chyba při ukládání změn: {e}")
+
+# TAB 4: Smazat závadu
+with tab_smazat:
+    st.title("🗑️ Odstranění závady")
+
+    if df.empty or "ID" not in df.columns:
+        st.warning("V databázi nejsou žádné záznamy ke smazání.")
+    else:
+        seznam_id_del = df["ID"].dropna().astype(int).tolist()
+        vybrane_id_del = st.selectbox(
+            "Vyberte ID závady, kterou chcete trvale smazat:",
+            options=seznam_id_del,
+            key="select_del_id",
+        )
+
+        radek_del = df[df["ID"] == vybrane_id_del].iloc[0]
+
+        st.warning(
+            f"**Chystáte se smazat závadu ID {vybrane_id_del}:**\n\n"
+            f"* **Lokomotiva:** {radek_del['Lokomotiva']}\n"
+            f"* **Datum:** {radek_del['Datum']}\n"
+            f"* **Popis:** {radek_del['Popis závady']}\n"
+            f"* **Poznámka:** {radek_del['Poznámka']}"
+        )
+
+        potvrzeni = st.checkbox(
+            f"Rozumím, opravdu chci trvale smazat závadu ID {vybrane_id_del}"
+        )
+
+        if st.button("🗑️ Trvale smazat záznam", type="primary"):
+            if not potvrzeni:
+                st.error(
+                    "Pro smazání musíte nejprve zaškrtnout potvrzovací políčko."
+                )
+            else:
+                try:
+                    upraveny_df = df[df["ID"] != vybrane_id_del].copy()
+
+                    if "GITHUB_TOKEN" in st.secrets:
+                        output = io.BytesIO()
+                        with pd.ExcelWriter(
+                            output, engine="openpyxl"
+                        ) as writer:
+                            upraveny_df.to_excel(writer, index=False)
+
+                        g = github.Github(st.secrets["GITHUB_TOKEN"])
+                        repo = g.get_repo(st.secrets["REPO_NAME"])
+                        contents = repo.get_contents(FILE_PATH)
+
+                        repo.update_file(
+                            contents.path,
+                            f"Smazána závada ID {vybrane_id_del}",
+                            output.getvalue(),
+                            contents.sha,
+                        )
+                        st.success(
+                            f"Závada ID {vybrane_id_del} byla úspěšně smazána!"
+                        )
+                        st.cache_data.clear()
+                except Exception as e:
+                    st.error(f"Chyba při mazání záznamu: {e}")
