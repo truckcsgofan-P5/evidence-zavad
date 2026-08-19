@@ -1,3 +1,4 @@
+from datetime import datetime
 import io
 import github
 import openpyxl
@@ -12,17 +13,27 @@ FILE_PATH = "PREDAVKA_ELEKTRONICI_PRO_APPSHEET.xlsx"
 
 
 def formatuj_datum_str(val):
-    """Pomocná funkce pro sjednocení formátu na DD.MM.RRRR"""
+    """Sjednotí formát data na DD.MM.RRRR"""
     if pd.isna(val) or not val:
         return ""
     try:
-        # Pokud je již v datetimu nebo standardním řetězci
         dt = pd.to_datetime(val, dayfirst=True, errors="coerce")
         if pd.notna(dt):
             return dt.strftime("%d.%m.%Y")
     except Exception:
         pass
     return str(val).strip()
+
+
+def parse_datum_do_objektu(val_str):
+    """Převede řetězec data zpět na objekt pro kalendář"""
+    try:
+        dt = pd.to_datetime(val_str, dayfirst=True, errors="coerce")
+        if pd.notna(dt):
+            return dt.date()
+    except Exception:
+        pass
+    return datetime.today().date()
 
 
 # Načtení dat přímo z GitHubu
@@ -36,7 +47,6 @@ def load_data():
     else:
         df = pd.read_excel(FILE_PATH)
 
-    # Sjednocení formátu data u všech načtených řádků na DD.MM.RRRR
     if "Datum" in df.columns:
         df["Datum"] = df["Datum"].apply(formatuj_datum_str)
 
@@ -45,9 +55,9 @@ def load_data():
 
 df = load_data()
 
-# Záložky v aplikaci
-tab_prehled, tab_novy = st.tabs(
-    ["📋 Přehled závad", "➕ Přidat novou závadu"]
+# Tři záložky v aplikaci
+tab_prehled, tab_novy, tab_edit = st.tabs(
+    ["📋 Přehled závad", "➕ Přidat novou závadu", "✏️ Úprava závady"]
 )
 
 # TAB 1: Přehled
@@ -99,17 +109,13 @@ with tab_novy:
             st.error("Vyplňte prosím lokomotivu a popis závady.")
         else:
             try:
-                # Výpočet nového ID
                 nove_id = (
                     int(df["ID"].max()) + 1
                     if not df.empty and "ID" in df
                     else 1
                 )
-
-                # Přísný formát DD.MM.RRRR (např. 05.06.2026)
                 datum_str = datum_input.strftime("%d.%m.%Y")
 
-                # Vytvoření nového řádku
                 novy_radek = pd.DataFrame(
                     [
                         {
@@ -124,7 +130,6 @@ with tab_novy:
 
                 upraveny_df = pd.concat([df, novy_radek], ignore_index=True)
 
-                # Uložení do GitHub repozitáře
                 if "GITHUB_TOKEN" in st.secrets:
                     output = io.BytesIO()
                     with pd.ExcelWriter(
@@ -143,13 +148,90 @@ with tab_novy:
                         contents.sha,
                     )
                     st.success(
-                        f"Závada pro lokomotivu {loko_input} byla úspěšně uložena s datem {datum_str} pod ID {nove_id}!"
+                        f"Závada pro lokomotivu {loko_input} byla úspěšně uložena pod ID {nove_id}!"
                     )
                     st.cache_data.clear()
-                else:
-                    st.warning(
-                        "Aplikace běží lokálně bez nastaveného GitHub tokenu. Data nebyla zapsána na server."
-                    )
-
             except Exception as e:
                 st.error(f"Chyba při ukládání: {e}")
+
+# TAB 3: Formulář pro úpravu stávající závady
+with tab_edit:
+    st.title("✏️ Úprava existující závady")
+
+    if df.empty or "ID" not in df.columns:
+        st.warning("V databázi nejsou žádné záznamy k úpravě.")
+    else:
+        seznam_id = df["ID"].dropna().astype(int).tolist()
+        vybrane_id = st.selectbox(
+            "Vyberte ID závady, kterou chcete upravit:",
+            options=seznam_id,
+            key="select_edit_id",
+        )
+
+        # Načtení stávajících dat vybraného řádku
+        radek = df[df["ID"] == vybrane_id].iloc[0]
+
+        puvodni_loko = (
+            str(radek["Lokomotiva"]) if pd.notna(radek["Lokomotiva"]) else ""
+        )
+        puvodni_datum = parse_datum_do_objektu(radek["Datum"])
+        puvodni_popis = (
+            str(radek["Popis závady"])
+            if pd.notna(radek["Popis závady"])
+            else ""
+        )
+        puvodni_poznamka = (
+            str(radek["Poznámka"]) if pd.notna(radek["Poznámka"]) else ""
+        )
+
+        with st.form("form_edit_zavada"):
+            st.info(f"Úprava závady ID: **{vybrane_id}**")
+            loko_edit = st.text_input("Lokomotiva:", value=puvodni_loko)
+            datum_edit = st.date_input(
+                "Datum:", value=puvodni_datum, format="DD.MM.YYYY"
+            )
+            popis_edit = st.text_area("Popis závady:", value=puvodni_popis)
+            poznamka_edit = st.text_input(
+                "Poznámka (např. stav opravy):", value=puvodni_poznamka
+            )
+
+            submit_edit = st.form_submit_button("Uložit změny")
+
+        if submit_edit:
+            if not loko_edit or not popis_edit:
+                st.error("Lokomotiva a popis závady nesmí být prázdné.")
+            else:
+                try:
+                    datum_str = datum_edit.strftime("%d.%m.%Y")
+
+                    # Aktualizace řádku v DataFrame
+                    idx = df[df["ID"] == vybrane_id].index[0]
+                    df.at[idx, "Lokomotiva"] = loko_edit.strip()
+                    df.at[idx, "Datum"] = datum_str
+                    df.at[idx, "Popis závady"] = popis_edit.strip()
+                    df.at[idx, "Poznámka"] = poznamka_edit.strip()
+
+                    # Uložení změn na GitHub
+                    if "GITHUB_TOKEN" in st.secrets:
+                        output = io.BytesIO()
+                        with pd.ExcelWriter(
+                            output, engine="openpyxl"
+                        ) as writer:
+                            df.to_excel(writer, index=False)
+
+                        g = github.Github(st.secrets["GITHUB_TOKEN"])
+                        repo = g.get_repo(st.secrets["REPO_NAME"])
+                        contents = repo.get_contents(FILE_PATH)
+
+                        repo.update_file(
+                            contents.path,
+                            f"Úprava závady ID {vybrane_id}",
+                            output.getvalue(),
+                            contents.sha,
+                        )
+                        st.success(
+                            f"Závada ID {vybrane_id} byla úspěšně aktualizována!"
+                        )
+                        st.cache_data.clear()
+                except Exception as e:
+                    st.error(f"Chyba při ukládání změn: {e}")
