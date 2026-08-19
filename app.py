@@ -18,7 +18,7 @@ st.markdown(
     header {visibility: hidden;}
     </style>
     """,
-    unsafe_allow_index=True,
+    unsafe_allow_html=True,
 )
 
 FILE_PATH = "PREDAVKA_ELEKTRONICI_PRO_APPSHEET.xlsx"
