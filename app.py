@@ -11,6 +11,18 @@ st.set_page_config(
 
 FILE_PATH = "PREDAVKA_ELEKTRONICI_PRO_APPSHEET.xlsx"
 
+# --- DEFINICE SEZNAMU KATEGORIÍ ZÁVAD ---
+# Zde můžete libovolně přidávat nebo upravovat kategorie
+KATEGORIE_LIST = [
+    "Elektrická výzbroj",
+    "Mechanická část",
+    "Brzdový systém",
+    "Spalovací motor / Pohon",
+    "Sdělovací a zabezpečovací technika",
+    "Klimatizace / Topení",
+    "Ostatní",
+]
+
 
 # --- PŘIHLAŠOVACÍ SYSTÉM ---
 def prihlaseni_uzivatele():
@@ -48,7 +60,7 @@ def prihlaseni_uzivatele():
 if not prihlaseni_uzivatele():
     st.stop()
 
-# --- SIĎEBAR: INFORMACE O UŽIVATELI A ODHLÁŠENÍ ---
+# --- SIDEBAR: INFORMACE O UŽIVATELI A ODHLÁŠENÍ ---
 with st.sidebar:
     st.write(
         f"👤 Přihlášen: **{st.session_state.get('uzivatel_jmeno', 'Uživatel')}**"
@@ -104,6 +116,12 @@ def load_data():
     if "Lokomotiva" in df.columns:
         df["Lokomotiva"] = df["Lokomotiva"].apply(formatuj_lokomotivu)
 
+    # Kontrola existence sloupce Kategorie (pokud v starém Excelu chybí)
+    if "Kategorie" not in df.columns:
+        df["Kategorie"] = "Neuvedeno"
+    else:
+        df["Kategorie"] = df["Kategorie"].fillna("Neuvedeno")
+
     return df
 
 
@@ -121,9 +139,9 @@ tab_prehled, tab_novy, tab_edit, tab_smazat = st.tabs(
 
 # TAB 1: Přehled
 with tab_prehled:
-    st.title("🚆 Přehled závad lokomotiv")
+    st.title("GPS Přehled závad lokomotiv")
 
-    col_f1, col_f2 = st.columns(2)
+    col_f1, col_f2, col_f3 = st.columns(3)
     with col_f1:
         seznam_loko = sorted(
             [str(x) for x in df["Lokomotiva"].dropna().unique()]
@@ -132,6 +150,10 @@ with tab_prehled:
             "Filtr podle lokomotivy:", options=seznam_loko
         )
     with col_f2:
+        vybrane_kategorie = st.multiselect(
+            "Filtr podle kategorie:", options=KATEGORIE_LIST
+        )
+    with col_f3:
         vyhledavani = st.text_input("Hledat v popisu nebo poznámce:")
 
     filtr_df = df.copy()
@@ -139,6 +161,8 @@ with tab_prehled:
         filtr_df = filtr_df[
             filtr_df["Lokomotiva"].astype(str).isin(vybrane_loko)
         ]
+    if vybrane_kategorie:
+        filtr_df = filtr_df[filtr_df["Kategorie"].isin(vybrane_kategorie)]
     if vyhledavani:
         maska = filtr_df["Popis závady"].astype(str).str.contains(
             vyhledavani, case=False, na=False
@@ -156,6 +180,9 @@ with tab_prehled:
                 "Datum", format="DD.MM.YYYY"
             ),
             "ID": st.column_config.NumberColumn("ID", format="%d"),
+            "Kategorie": st.column_config.SelectboxColumn(
+                "Kategorie", options=KATEGORIE_LIST
+            ),
         },
     )
 
@@ -164,10 +191,17 @@ with tab_novy:
     st.title("➕ Zapsat novou závadu")
 
     with st.form("form_zavada", clear_on_submit=True):
-        loko_input = st.text_input("Označení lokomotivy (např. 814 190):")
-        datum_input = st.date_input(
-            "Datum zjištění závady:", format="DD.MM.YYYY"
-        )
+        col_n1, col_n2 = st.columns(2)
+        with col_n1:
+            loko_input = st.text_input("Označení lokomotivy (např. 814 190):")
+            kategorie_input = st.selectbox(
+                "Kategorie závady:", options=KATEGORIE_LIST
+            )
+        with col_n2:
+            datum_input = st.date_input(
+                "Datum zjištění závady:", format="DD.MM.YYYY"
+            )
+
         popis_input = st.text_area("Popis závady:")
         poznamka_input = st.text_input("Poznámka (volitelné):")
 
@@ -190,6 +224,7 @@ with tab_novy:
                         {
                             "ID": nove_id,
                             "Lokomotiva": loko_formatted,
+                            "Kategorie": kategorie_input,
                             "Datum": pd.to_datetime(datum_input),
                             "Popis závady": popis_input.strip(),
                             "Poznámka": poznamka_input.strip(),
@@ -241,6 +276,15 @@ with tab_edit:
             else ""
         )
 
+        puvodni_kat = (
+            str(radek["Kategorie"]) if pd.notna(radek["Kategorie"]) else ""
+        )
+        kat_index = (
+            KATEGORIE_LIST.index(puvodni_kat)
+            if puvodni_kat in KATEGORIE_LIST
+            else 0
+        )
+
         if pd.notna(radek["Datum"]):
             try:
                 puvodni_datum = pd.to_datetime(radek["Datum"]).date()
@@ -260,10 +304,17 @@ with tab_edit:
 
         with st.form("form_edit_zavada"):
             st.info(f"Úprava závady ID: **{vybrane_id}**")
-            loko_edit = st.text_input("Lokomotiva:", value=puvodni_loko)
-            datum_edit = st.date_input(
-                "Datum:", value=puvodni_datum, format="DD.MM.YYYY"
-            )
+            col_e1, col_e2 = st.columns(2)
+            with col_e1:
+                loko_edit = st.text_input("Lokomotiva:", value=puvodni_loko)
+                kategorie_edit = st.selectbox(
+                    "Kategorie závady:", options=KATEGORIE_LIST, index=kat_index
+                )
+            with col_e2:
+                datum_edit = st.date_input(
+                    "Datum:", value=puvodni_datum, format="DD.MM.YYYY"
+                )
+
             popis_edit = st.text_area("Popis závady:", value=puvodni_popis)
             poznamka_edit = st.text_input(
                 "Poznámka (např. stav opravy):", value=puvodni_poznamka
@@ -278,6 +329,7 @@ with tab_edit:
                 try:
                     idx = df[df["ID"] == vybrane_id].index[0]
                     df.at[idx, "Lokomotiva"] = formatuj_lokomotivu(loko_edit)
+                    df.at[idx, "Kategorie"] = kategorie_edit
                     df.at[idx, "Datum"] = pd.to_datetime(datum_edit)
                     df.at[idx, "Popis závady"] = popis_edit.strip()
                     df.at[idx, "Poznámka"] = poznamka_edit.strip()
@@ -331,6 +383,7 @@ with tab_smazat:
         st.warning(
             f"**Chystáte se smazat závadu ID {vybrane_id_del}:**\n\n"
             f"* **Lokomotiva:** {radek_del['Lokomotiva']}\n"
+            f"* **Kategorie:** {radek_del.get('Kategorie', 'Neuvedeno')}\n"
             f"* **Datum:** {datum_zobraz}\n"
             f"* **Popis:** {radek_del['Popis závady']}\n"
             f"* **Poznámka:** {radek_del['Poznámka']}"
