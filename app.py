@@ -27,6 +27,7 @@ KATEGORIE_LIST = [
     "Elektrická výzbroj",
     "Mechanická část",
     "Brzdový systém",
+    "IS - Infosystém",
     "Spalovací motor / Pohon",
     "Sdělovací a zabezpečovací technika",
     "Klimatizace / Topení",
