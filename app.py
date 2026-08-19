@@ -158,16 +158,19 @@ df = load_data()
 # Záložky aplikace
 tab_prehled, tab_novy, tab_edit, tab_smazat = st.tabs(
     [
-        "📋 Přehled závad",
+        "📋 Přehled a úprava závad",
         "➕ Přidat novou závadu",
-        "✏️ Úprava závady",
+        "✏️ Detailní úprava závady",
         "🗑️ Smazat závadu",
     ]
 )
 
-# TAB 1: Přehled
+# TAB 1: Přehled a přímá úprava v tabulce
 with tab_prehled:
-    st.title("📋 Přehled závad lokomotiv")
+    st.title("📋 Přehled a úprava závad lokomotiv")
+    st.info(
+        "💡 **Tip:** Hodnoty v tabulce můžete upravovat přímo dvojklikem na buňku. Po dokončení uprav nezapomeňte dole kliknout na tlačítko **Uložit změny v tabulce**."
+    )
 
     col_f1, col_f2, col_f3 = st.columns(3)
     with col_f1:
@@ -191,6 +194,7 @@ with tab_prehled:
             placeholder="Napište hledaný text...",
         )
 
+    # Aplikace filtrů
     filtr_df = df.copy()
     if vybrane_loko:
         filtr_df = filtr_df[
@@ -206,10 +210,13 @@ with tab_prehled:
         )
         filtr_df = filtr_df[maska]
 
-    st.dataframe(
+    # Interaktivní editační tabulka
+    edited_df = st.data_editor(
         filtr_df,
         use_container_width=True,
         height=500,
+        num_rows="fixed",  # Zakáže přidávání/mazání řádků klávesou Delete
+        disabled=["ID"],   # Uzamkne sloupec ID proti přepisu
         column_config={
             "Datum": st.column_config.DateColumn(
                 "Datum", format="DD.MM.YYYY"
@@ -219,7 +226,49 @@ with tab_prehled:
                 "Kategorie", options=KATEGORIE_LIST
             ),
         },
+        key="editor_zavad",
     )
+
+    # Tlačítko pro uložení změn provedených v editační tabulce
+    if st.button("💾 Uložit změny v tabulce", type="primary"):
+        try:
+            # Aktualizace hlavního DataFrame podle ID z upravené tabulky
+            for idx, row in edited_df.iterrows():
+                zavada_id = row["ID"]
+                main_idx = df[df["ID"] == zavada_id].index
+                if not main_idx.empty:
+                    df.loc[main_idx[0], "Lokomotiva"] = formatuj_lokomotivu(row["Lokomotiva"])
+                    df.loc[main_idx[0], "Kategorie"] = row["Kategorie"]
+                    df.loc[main_idx[0], "Datum"] = pd.to_datetime(row["Datum"])
+                    df.loc[main_idx[0], "Popis závady"] = (
+                        str(row["Popis závady"]).strip()
+                        if pd.notna(row["Popis závady"])
+                        else ""
+                    )
+                    df.loc[main_idx[0], "Poznámka"] = (
+                        str(row["Poznámka"]).strip()
+                        if pd.notna(row["Poznámka"])
+                        else ""
+                    )
+
+            # Uložení změn na GitHub
+            if "GITHUB_TOKEN" in st.secrets:
+                excel_bytes = ulozit_df_do_bytes(df)
+
+                g = github.Github(st.secrets["GITHUB_TOKEN"])
+                repo = g.get_repo(st.secrets["REPO_NAME"])
+                contents = repo.get_contents(FILE_PATH)
+
+                repo.update_file(
+                    contents.path,
+                    f"Hromadná úprava z tabulky (autor: {st.session_state.get('uzivatel_jmeno')})",
+                    excel_bytes,
+                    contents.sha,
+                )
+                st.success("✅ Všechny změny z tabulky byly úspěšně uloženy!")
+                st.cache_data.clear()
+        except Exception as e:
+            st.error(f"Chyba při ukládání změn: {e}")
 
 # TAB 2: Formulář pro zadání nové závady
 with tab_novy:
@@ -297,7 +346,7 @@ with tab_novy:
             except Exception as e:
                 st.error(f"Chyba při ukládání: {e}")
 
-# TAB 3: Formulář pro úpravu stávající závady
+# TAB 3: Formulář pro detailní úpravu stávající závady
 with tab_edit:
     st.title("✏️ Úprava existující závady")
 
