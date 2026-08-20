@@ -554,8 +554,27 @@ with tab_smazat:
         )
         radek_del = df[df["ID"] == vybrane_id_del].iloc[0]
 
+        # Naformátování data pro zobrazení
+        datum_zobraz = (
+            pd.to_datetime(radek_del["Datum"]).strftime("%d.%m.%Y")
+            if pd.notna(radek_del.get("Datum"))
+            and not pd.isna(pd.to_datetime(radek_del.get("Datum")))
+            else "Neuvedeno"
+        )
+
+        # Náhled mazaného záznamu
+        st.markdown("### 📄 Detail vybraného záznamu k odstranění:")
+        st.info(
+            f"**ID závady:** {radek_del.get('ID', '')}\n\n"
+            f"**Lokomotiva:** {radek_del.get('Lokomotiva', '')}\n\n"
+            f"**Kategorie:** {radek_del.get('Kategorie', '')}\n\n"
+            f"**Datum zjištění:** {datum_zobraz}\n\n"
+            f"**Popis závady:** {radek_del.get('Popis závady', 'Bez popisu')}\n\n"
+            f"**Poznámka:** {radek_del.get('Poznámka', 'Bez poznámky')}"
+        )
+
         st.warning(
-            f"**Smazat závadu ID {vybrane_id_del} pro lokomotivu {radek_del['Lokomotiva']}?**"
+            f"⚠️ Opravdu chcete trvale smazat tuto závadu pro lokomotivu **{radek_del['Lokomotiva']}**?"
         )
         potvrzeni = st.checkbox("Rozumím, opravdu chci trvale smazat")
 
