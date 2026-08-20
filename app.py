@@ -31,6 +31,7 @@ KATEGORIE_LIST = [
     "Mechanická část",
     "Brzdový systém",
     "IS - Infosystém",
+    "Dobíjení",
     "Spalovací motor / Pohon",
     "Sdělovací a zabezpečovací technika",
     "Klimatizace / Topení",
