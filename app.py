@@ -582,8 +582,10 @@ with tab_edit:
                     type=["png", "jpg", "jpeg"]
                 )
 
+            smazat_fotku_checkbox = False
             if puvodni_fotka and puvodni_fotka != "nan":
                 st.markdown(f"📎 Aktuální odkaz na fotku: [{puvodni_fotka}]({puvodni_fotka})")
+                smazat_fotku_checkbox = st.checkbox("❌ Smazat stávající fotku (odstranit odkaz)")
 
             popis_edit = st.text_area(
                 "Popis závady:", value=str(radek.get("Popis závady", ""))
@@ -596,7 +598,10 @@ with tab_edit:
 
         if submit_edit:
             cilova_fotka_url = puvodni_fotka
-            if fotka_edit_file is not None:
+            
+            if smazat_fotku_checkbox:
+                cilova_fotka_url = ""
+            elif fotka_edit_file is not None:
                 with st.spinner("Nahrávám novou fotku na ImgBB..."):
                     novy_obrazek_bytes = fotka_edit_file.getvalue()
                     nove_imgbb_url = nahraj_na_imgbb(novy_obrazek_bytes)
