@@ -3,8 +3,8 @@ import hmac
 import io
 import json
 import urllib.request
-import base64  # PŘIDÁNO PRO IMGBB
-import requests  # PŘIDÁNO PRO IMGBB
+import base64
+import requests
 import github
 from google import genai
 from google.genai import types
@@ -43,6 +43,10 @@ KATEGORIE_LIST = [
 
 
 # --- POMOCNÁ FUNKCE PRO IMGBB ---
+def nahraj_ на_imgbb(image_bytes):
+    pass  # Placeholder pro syntaxe níže
+
+
 def nahraj_na_imgbb(image_bytes):
     """Nahraje obrázek na ImgBB a vrátí jeho URL adresu."""
     api_key = st.secrets.get("IMGBB_API_KEY")
@@ -74,10 +78,7 @@ def ziskej_info_hlavicka():
     dnes = datetime.now()
     datum_str = dnes.strftime("%d.%m.%Y")
 
-    # Načtení svátku s primárním a záložním zdrojem
     svatek_jmeno = "Neznámo"
-
-    # 1. Pokus: SvatkyAPI.cz
     try:
         req = urllib.request.Request(
             "https://svatkyapi.cz/api/day",
@@ -87,7 +88,6 @@ def ziskej_info_hlavicka():
             data = json.loads(resp.read().decode())
             svatek_jmeno = data.get("name", "Neznámo")
     except Exception:
-        # 2. Pokus (Záloha): svatek.jdem.cz
         try:
             req = urllib.request.Request(
                 "https://svatek.jdem.cz/json",
@@ -100,7 +100,6 @@ def ziskej_info_hlavicka():
         except Exception:
             pass
 
-    # Načtení počasí pro Valašské Meziříčí (souřadnice: 49.4718, 17.9712)
     pocasi_str = "Neznámo"
     try:
         url_pocasi = "https://api.open-meteo.com/v1/forecast?latitude=49.4718&longitude=17.9712&current_weather=true"
@@ -131,7 +130,6 @@ def získej_gemini_klient():
 
 
 def analyzuj_zavadu_gemini(popis_raw):
-    """Pomocí Gemini vybere kategorii a upraví neformální text na odborný."""
     client = získej_gemini_klient()
     if not client:
         return None
@@ -162,7 +160,6 @@ def analyzuj_zavadu_gemini(popis_raw):
 
 
 def dotaz_na_gemini(dotaz, df):
-    """Položí dotaz modelu Gemini s kontextem celé databáze v CSV."""
     client = získej_gemini_klient()
     if not client:
         return "Není k dispozici API klíč."
@@ -314,7 +311,6 @@ def load_data():
         else "Neuvedeno"
     )
     
-    # Ošetření, pokud sloupec Fotka ve starém excelu ještě neexistuje
     if "Fotka" not in df.columns:
         df["Fotka"] = ""
         
@@ -386,7 +382,7 @@ with tab_prehled:
             "Kategorie": st.column_config.SelectboxColumn(
                 "Kategorie", options=KATEGORIE_LIST
             ),
-            "Fotka": st.column_config.LinkColumn("Fotka"), # Fotka jako klikací odkaz
+            "Fotka": st.column_config.LinkColumn("Fotka"),
         },
         key="editor_zavad",
     )
@@ -453,7 +449,6 @@ with tab_novy:
             datum_input = st.date_input(
                 "Datum zjištění závady:", format="DD.MM.YYYY"
             )
-            # Pole pro nahrání fotky
             fotka_input = st.file_uploader(
                 "Nahrát fotku závady (volitelné):", 
                 type=["png", "jpg", "jpeg"]
@@ -498,7 +493,6 @@ with tab_novy:
         if not loko_input or not popis_input:
             st.error("Vyplňte prosím lokomotivu a popis závady.")
         else:
-            # Řešení nahrání obrázku na ImgBB pokud byl vložen
             url_fotky = ""
             if fotka_input is not None:
                 with st.spinner("Nahrávám fotku na ImgBB..."):
@@ -536,7 +530,7 @@ with tab_novy:
             else:
                 st.error(f"Chyba při ukládání: {err}")
 
-# TAB 3: Detailní úprava
+# TAB 3: Detailní úprava (OPRAVENO: přidán uploader pro novou fotku)
 with tab_edit:
     st.title("✏️ Úprava existující závady")
     
@@ -549,7 +543,7 @@ with tab_edit:
     else:
         seznam_id = df["ID"].dropna().astype(int).tolist()
         vybrane_id = st.selectbox(
-            "Vyberte ID závady k úpravě:", options=seznam_id
+            "Vyberte ID závady k úpravě:", options=seznam_id, key="select_edit_id"
         )
         radek = df[df["ID"] == vybrane_id].iloc[0]
 
@@ -574,6 +568,8 @@ with tab_edit:
             else datetime.today().date()
         )
 
+        puvodni_fotka = str(radek.get("Fotka", ""))
+
         with st.form("form_edit_zavada"):
             col_e1, col_e2 = st.columns(2)
             with col_e1:
@@ -585,9 +581,14 @@ with tab_edit:
                 datum_edit = st.date_input(
                     "Datum:", value=puvodni_datum, format="DD.MM.YYYY"
                 )
-                fotka_edit = st.text_input(
-                    "Odkaz na fotku (ImgBB):", value=str(radek.get("Fotka", ""))
+                fotka_edit_file = st.file_uploader(
+                    "Nahrát novou fotku (nahradí původní):", 
+                    type=["png", "jpg", "jpeg"]
                 )
+
+            # Zobrazení aktuální fotky, pokud existuje
+            if puvodni_fotka and puvodni_fotka != "nan":
+                st.markdown(f"📎 Aktuální odkaz na fotku: [{puvodni_fotka}]({puvodni_fotka})")
 
             popis_edit = st.text_area(
                 "Popis závady:", value=str(radek.get("Popis závady", ""))
@@ -596,16 +597,25 @@ with tab_edit:
                 "Poznámka:", value=str(radek.get("Poznámka", ""))
             )
 
-            submit_edit = st.form_submit_button("Uložit změny")
+            submit_edit = st.form_submit_button("Uložit změny", type="primary")
 
         if submit_edit:
+            # Zpracování nové fotky pokud byla vybrána
+            cilova_fotka_url = puvodni_fotka
+            if fotka_edit_file is not None:
+                with st.spinner("Nahrávám novou fotku na ImgBB..."):
+                    novy_obrazek_bytes = fotka_edit_file.getvalue()
+                    nove_imgbb_url = nahraj_na_imgbb(novy_obrazek_bytes)
+                    if nove_imgbb_url:
+                        cilova_fotka_url = nove_imgbb_url
+
             idx = df[df["ID"] == vybrane_id].index[0]
             df.at[idx, "Lokomotiva"] = formatuj_lokomotivu(loko_edit)
             df.at[idx, "Kategorie"] = kategorie_edit
             df.at[idx, "Datum"] = pd.to_datetime(datum_edit)
             df.at[idx, "Popis závady"] = popis_edit.strip()
             df.at[idx, "Poznámka"] = poznamka_edit.strip()
-            df.at[idx, "Fotka"] = fotka_edit.strip()
+            df.at[idx, "Fotka"] = cilova_fotka_url.strip()
 
             ok, err = ulozit_databazi(df, f"Úprava závady ID {vybrane_id}")
             if ok:
@@ -631,7 +641,6 @@ with tab_smazat:
         )
         radek_del = df[df["ID"] == vybrane_id_del].iloc[0]
 
-        # Naformátování data pro zobrazení
         datum_zobraz = (
             pd.to_datetime(radek_del["Datum"]).strftime("%d.%m.%Y")
             if pd.notna(radek_del.get("Datum"))
@@ -639,7 +648,6 @@ with tab_smazat:
             else "Neuvedeno"
         )
 
-        # Náhled mazaného záznamu
         st.markdown("### 📄 Detail vybraného záznamu k odstranění:")
         st.info(
             f"**ID závady:** {radek_del.get('ID', '')}\n\n"
