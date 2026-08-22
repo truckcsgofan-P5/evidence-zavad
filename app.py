@@ -199,9 +199,9 @@ col_info, col_btn = st.columns([5, 1], vertical_alignment="bottom")
 
 with col_info:
     st.caption(
-        f"👤 Přihlášen: **{st.session_state.get('uzivatel_jmeno', 'Uživatel')}**  |  "
-        f"📅 {datum_dnes}  |  "
-        f"🎉 Svátek: {svatek_dnes}  |  "
+        f"👤 Přihlášen: **{st.session_state.get('uzivatel_jmeno', 'Uživatel')}**  |  "
+        f"📅 {datum_dnes}  |  "
+        f"🎉 Svátek: {svatek_dnes}  |  "
         f"🌤️ Počasí (Val. Meziříčí): {pocasi_valmez}"
     )
 
@@ -304,6 +304,11 @@ tab_prehled, tab_novy, tab_edit, tab_smazat, tab_ai = st.tabs(
 # TAB 1: Přehled
 with tab_prehled:
     st.title("📋 Přehled a úprava závad")
+    
+    if "msg_tab1" in st.session_state:
+        st.success(st.session_state["msg_tab1"])
+        del st.session_state["msg_tab1"]
+
     col_f1, col_f2, col_f3 = st.columns(3)
     with col_f1:
         seznam_loko = sorted(
@@ -375,7 +380,7 @@ with tab_prehled:
 
         ok, err = ulozit_databazi(df, "Hromadná úprava z tabulky")
         if ok:
-            st.success("✅ Všechny změny byly uloženy!")
+            st.session_state["msg_tab1"] = "✅ Všechny změny z tabulky byly úspěšně uloženy!"
             st.rerun()
         else:
             st.error(f"Chyba při ukládání: {err}")
@@ -383,6 +388,10 @@ with tab_prehled:
 # TAB 2: Nová závada s podporou Gemini
 with tab_novy:
     st.title("➕ Zapsat novou závadu")
+
+    if "msg_tab2" in st.session_state:
+        st.success(st.session_state["msg_tab2"])
+        del st.session_state["msg_tab2"]
 
     default_kat = st.session_state.get("ai_kategorie", KATEGORIE_LIST[0])
     default_popis = st.session_state.get("ai_popis", "")
@@ -468,7 +477,7 @@ with tab_novy:
             if ok:
                 st.session_state["ai_popis"] = ""
                 st.session_state["ai_kategorie"] = KATEGORIE_LIST[0]
-                st.success(f"Závada byla uložena pod ID {nove_id}!")
+                st.session_state["msg_tab2"] = f"✅ Závada byla úspěšně uložena pod ID {nove_id}!"
                 st.rerun()
             else:
                 st.error(f"Chyba při ukládání: {err}")
@@ -476,6 +485,11 @@ with tab_novy:
 # TAB 3: Detailní úprava
 with tab_edit:
     st.title("✏️ Úprava existující závady")
+    
+    if "msg_tab3" in st.session_state:
+        st.success(st.session_state["msg_tab3"])
+        del st.session_state["msg_tab3"]
+
     if df.empty or "ID" not in df.columns:
         st.warning("V databázi nejsou žádné záznamy k úpravě.")
     else:
@@ -537,7 +551,7 @@ with tab_edit:
 
             ok, err = ulozit_databazi(df, f"Úprava závady ID {vybrane_id}")
             if ok:
-                st.success(f"Závada ID {vybrane_id} byla aktualizována!")
+                st.session_state["msg_tab3"] = f"✅ Závada ID {vybrane_id} byla úspěšně aktualizována!"
                 st.rerun()
             else:
                 st.error(f"Chyba při ukládání: {err}")
@@ -545,6 +559,11 @@ with tab_edit:
 # TAB 4: Smazat
 with tab_smazat:
     st.title("🗑️ Odstranění závady")
+    
+    if "msg_tab4" in st.session_state:
+        st.success(st.session_state["msg_tab4"])
+        del st.session_state["msg_tab4"]
+
     if df.empty or "ID" not in df.columns:
         st.warning("V databázi nejsou žádné záznamy ke smazání.")
     else:
@@ -587,7 +606,7 @@ with tab_smazat:
                     upraveny_df, f"Smazána závada ID {vybrane_id_del}"
                 )
                 if ok:
-                    st.success("Záznam byl smazán!")
+                    st.session_state["msg_tab4"] = "✅ Záznam byl úspěšně trvale smazán!"
                     st.rerun()
                 else:
                     st.error(f"Chyba: {err}")
