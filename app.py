@@ -3,12 +3,18 @@ import hmac
 import io
 import json
 import urllib.request
+
 import github
-from google import genai
-from google.genai import types
 import openpyxl
 import pandas as pd
 import streamlit as st
+from google import genai
+from google.genai import types
+
+# --- GOOGLE DRIVE IMPORTS ---
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload
 
 st.set_page_config(
     page_title="Evidence závad lokomotiv", layout="wide", page_icon="🚆"
@@ -46,10 +52,7 @@ def ziskej_info_hlavicka():
     dnes = datetime.now()
     datum_str = dnes.strftime("%d.%m.%Y")
 
-    # Načtení svátku s primárním a záložním zdrojem
     svatek_jmeno = "Neznámo"
-
-    # 1. Pokus: SvatkyAPI.cz
     try:
         req = urllib.request.Request(
             "https://svatkyapi.cz/api/day",
@@ -59,7 +62,6 @@ def ziskej_info_hlavicka():
             data = json.loads(resp.read().decode())
             svatek_jmeno = data.get("name", "Neznámo")
     except Exception:
-        # 2. Pokus (Záloha): svatek.jdem.cz
         try:
             req = urllib.request.Request(
                 "https://svatek.jdem.cz/json",
@@ -72,7 +74,6 @@ def ziskej_info_hlavicka():
         except Exception:
             pass
 
-    # Načtení počasí pro Valašské Meziříčí (souřadnice: 49.4718, 17.9712)
     pocasi_str = "Neznámo"
     try:
         url_pocasi = "https://api.open-meteo.com/v1/forecast?latitude=49.4718&longitude=17.9712&current_weather=true"
@@ -93,8 +94,46 @@ def ziskej_info_hlavicka():
     return datum_str, svatek_jmeno, pocasi_str
 
 
+# --- GOOGLE DRIVE FUNKCE ---
+def nahraj_na_drive(file_bytes, filename, mimetype):
+    """Nahraje soubor na Google Drive a vrátí veřejný odkaz."""
+    try:
+        creds_info = st.secrets["gcp_service_account"]
+        folder_id = st.secrets["DRIVE_FOLDER_ID"]
+        
+        credentials = service_account.Credentials.from_service_account_info(
+            creds_info, 
+            scopes=['https://www.googleapis.com/auth/drive.file']
+        )
+        service = build('drive', 'v3', credentials=credentials)
+        
+        file_metadata = {
+            'name': filename,
+            'parents': [folder_id]
+        }
+        
+        media = MediaIoBaseUpload(io.BytesIO(file_bytes), mimetype=mimetype, resumable=True)
+        
+        file = service.files().create(
+            body=file_metadata, 
+            media_body=media, 
+            fields='id, webViewLink'
+        ).execute()
+        
+        # Nastavení oprávnění, aby odkaz fungoval komukoliv
+        service.permissions().create(
+            fileId=file.get('id'),
+            body={'type': 'anyone', 'role': 'reader'}
+        ).execute()
+        
+        return file.get('webViewLink')
+    except Exception as e:
+        st.error(f"Chyba při nahrávání na Google Drive: {e}")
+        return None
+
+
 # --- GEMINI AI POMOCNÉ FUNKCE ---
-def získej_gemini_klient():
+def ziskej_gemini_klient():
     api_key = st.secrets.get("GEMINI_API_KEY")
     if not api_key:
         st.error("❌ V `secrets.toml` chybí `GEMINI_API_KEY`!")
@@ -103,8 +142,7 @@ def získej_gemini_klient():
 
 
 def analyzuj_zavadu_gemini(popis_raw):
-    """Pomocí Gemini vybere kategorii a upraví neformální text na odborný."""
-    client = získej_gemini_klient()
+    client = ziskej_gemini_klient()
     if not client:
         return None
 
@@ -134,8 +172,7 @@ def analyzuj_zavadu_gemini(popis_raw):
 
 
 def dotaz_na_gemini(dotaz, df):
-    """Položí dotaz modelu Gemini s kontextem celé databáze v CSV."""
-    client = získej_gemini_klient()
+    client = ziskej_gemini_klient()
     if not client:
         return "Není k dispozici API klíč."
 
@@ -285,6 +322,13 @@ def load_data():
         if "Kategorie" in df.columns
         else "Neuvedeno"
     )
+    
+    # Ošetření pro starší záznamy bez fotky
+    if "Fotka" not in df.columns:
+        df["Fotka"] = "Bez fotky"
+    else:
+        df["Fotka"] = df["Fotka"].fillna("Bez fotky")
+        
     return df
 
 
@@ -339,12 +383,13 @@ with tab_prehled:
         )
         filtr_df = filtr_df[maska]
 
+    # Zobrazení dat s možností prokliku na fotku
     edited_df = st.data_editor(
         filtr_df,
         use_container_width=True,
         height=500,
         num_rows="fixed",
-        disabled=["ID"],
+        disabled=["ID", "Fotka"],
         column_config={
             "Datum": st.column_config.DateColumn(
                 "Datum", format="DD.MM.YYYY"
@@ -353,6 +398,7 @@ with tab_prehled:
             "Kategorie": st.column_config.SelectboxColumn(
                 "Kategorie", options=KATEGORIE_LIST
             ),
+            "Fotka": st.column_config.LinkColumn("📸 Fotka")
         },
         key="editor_zavad",
     )
@@ -385,7 +431,7 @@ with tab_prehled:
         else:
             st.error(f"Chyba při ukládání: {err}")
 
-# TAB 2: Nová závada s podporou Gemini
+# TAB 2: Nová závada s podporou Gemini a fotkami
 with tab_novy:
     st.title("➕ Zapsat novou závadu")
 
@@ -423,6 +469,9 @@ with tab_novy:
         poznamka_input = st.text_input(
             "Poznámka (volitelné):", placeholder="Např. objednané díly..."
         )
+        
+        # Ovladač pro nahrání fotky
+        nahrana_fotka = st.file_uploader("📸 Přiložit fotku závady (volitelné)", type=["jpg", "png", "jpeg"])
 
         col_b1, col_b2 = st.columns([1, 1])
         with col_b1:
@@ -457,6 +506,23 @@ with tab_novy:
             nove_id = (
                 int(df["ID"].max()) + 1 if not df.empty and "ID" in df else 1
             )
+            
+            odkaz_na_fotku = "Bez fotky"
+            
+            # Zpracování nahrání na Google Drive
+            if nahrana_fotka is not None:
+                with st.spinner("Nahrávám fotku na Google Drive..."):
+                    bezpecne_loko = formatuj_lokomotivu(loko_input).replace(" ", "")
+                    nazev_souboru = f"Loko_{bezpecne_loko}_ID{nove_id}_{nahrana_fotka.name}"
+                    
+                    vysledek_odkaz = nahraj_na_drive(
+                        nahrana_fotka.getvalue(), 
+                        nazev_souboru, 
+                        nahrana_fotka.type
+                    )
+                    if vysledek_odkaz:
+                        odkaz_na_fotku = vysledek_odkaz
+
             novy_radek = pd.DataFrame(
                 [
                     {
@@ -466,6 +532,7 @@ with tab_novy:
                         "Datum": pd.to_datetime(datum_input),
                         "Popis závady": popis_input.strip(),
                         "Poznámka": poznamka_input.strip(),
+                        "Fotka": odkaz_na_fotku
                     }
                 ]
             )
@@ -538,6 +605,9 @@ with tab_edit:
             poznamka_edit = st.text_input(
                 "Poznámka:", value=str(radek.get("Poznámka", ""))
             )
+            fotka_edit = st.text_input(
+                "Odkaz na fotku (lze upravit ručně):", value=str(radek.get("Fotka", "Bez fotky"))
+            )
 
             submit_edit = st.form_submit_button("Uložit změny")
 
@@ -548,6 +618,7 @@ with tab_edit:
             df.at[idx, "Datum"] = pd.to_datetime(datum_edit)
             df.at[idx, "Popis závady"] = popis_edit.strip()
             df.at[idx, "Poznámka"] = poznamka_edit.strip()
+            df.at[idx, "Fotka"] = fotka_edit.strip()
 
             ok, err = ulozit_databazi(df, f"Úprava závady ID {vybrane_id}")
             if ok:
@@ -573,15 +644,16 @@ with tab_smazat:
         )
         radek_del = df[df["ID"] == vybrane_id_del].iloc[0]
 
-        # Naformátování data pro zobrazení
         datum_zobraz = (
             pd.to_datetime(radek_del["Datum"]).strftime("%d.%m.%Y")
             if pd.notna(radek_del.get("Datum"))
             and not pd.isna(pd.to_datetime(radek_del.get("Datum")))
             else "Neuvedeno"
         )
+        
+        fotka_zobraz = radek_del.get("Fotka", "Bez fotky")
+        fotka_status = "Odkaz přiložen" if "http" in str(fotka_zobraz) else "Bez fotky"
 
-        # Náhled mazaného záznamu
         st.markdown("### 📄 Detail vybraného záznamu k odstranění:")
         st.info(
             f"**ID závady:** {radek_del.get('ID', '')}\n\n"
@@ -589,7 +661,8 @@ with tab_smazat:
             f"**Kategorie:** {radek_del.get('Kategorie', '')}\n\n"
             f"**Datum zjištění:** {datum_zobraz}\n\n"
             f"**Popis závady:** {radek_del.get('Popis závady', 'Bez popisu')}\n\n"
-            f"**Poznámka:** {radek_del.get('Poznámka', 'Bez poznámky')}"
+            f"**Poznámka:** {radek_del.get('Poznámka', 'Bez poznámky')}\n\n"
+            f"**Fotka:** {fotka_status}"
         )
 
         st.warning(
