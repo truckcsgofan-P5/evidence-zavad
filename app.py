@@ -43,10 +43,6 @@ KATEGORIE_LIST = [
 
 
 # --- POMOCNÁ FUNKCE PRO IMGBB ---
-def nahraj_ на_imgbb(image_bytes):
-    pass  # Placeholder pro syntaxe níže
-
-
 def nahraj_na_imgbb(image_bytes):
     """Nahraje obrázek na ImgBB a vrátí jeho URL adresu."""
     api_key = st.secrets.get("IMGBB_API_KEY")
@@ -530,7 +526,7 @@ with tab_novy:
             else:
                 st.error(f"Chyba při ukládání: {err}")
 
-# TAB 3: Detailní úprava (OPRAVENO: přidán uploader pro novou fotku)
+# TAB 3: Detailní úprava
 with tab_edit:
     st.title("✏️ Úprava existující závady")
     
@@ -586,7 +582,6 @@ with tab_edit:
                     type=["png", "jpg", "jpeg"]
                 )
 
-            # Zobrazení aktuální fotky, pokud existuje
             if puvodni_fotka and puvodni_fotka != "nan":
                 st.markdown(f"📎 Aktuální odkaz na fotku: [{puvodni_fotka}]({puvodni_fotka})")
 
@@ -600,7 +595,6 @@ with tab_edit:
             submit_edit = st.form_submit_button("Uložit změny", type="primary")
 
         if submit_edit:
-            # Zpracování nové fotky pokud byla vybrána
             cilova_fotka_url = puvodni_fotka
             if fotka_edit_file is not None:
                 with st.spinner("Nahrávám novou fotku na ImgBB..."):
