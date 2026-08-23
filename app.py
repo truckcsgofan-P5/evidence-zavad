@@ -738,6 +738,7 @@ with tab_smazat:
                     st.rerun()
                 else:
                     st.error(f"Chyba: {err}")
+    st.dataframe(df)
 
 # TAB 5: Gemini AI Chat nad databází
 with tab_ai:
