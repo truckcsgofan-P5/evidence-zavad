@@ -394,18 +394,50 @@ def load_data():
 
 df = load_data()
 
-# --- ZÁLOŽKY APLIKACE ---
-tab_prehled, tab_novy, tab_edit, tab_smazat, tab_pdf, tab_foto, tab_ai = st.tabs(
-    [
-        "📋 Přehled a úprava",
-        "➕ Přidat závadu",
-        "✏️ Detailní úprava",
-        "🗑️ Smazat závadu",
-        "📄 Technická dokumentace",
-        "🖼️ Fotodokumentace",
-        "🤖 Gemini Asistent",
-    ]
-)
+# Načtení role z přihlášení
+role_user = st.session_state.get("uzivatel_role", "viewer").lower()
+
+# Logika zobrazení tabů podle role:
+# viewer -> vidí jen Přehled, Dokumenty, Fotodokumentaci a AI
+# editor -> vidí vše kromě Smazat
+# admin  -> vidí úplně vše
+
+if role_user == "admin":
+    tab_prehled, tab_novy, tab_edit, tab_smazat, tab_pdf, tab_foto, tab_ai = st.tabs(
+        [
+            "📋 Přehled a úprava",
+            "➕ Přidat závadu",
+            "✏️ Detailní úprava",
+            "🗑️ Smazat závadu",
+            "📄 Technická dokumentace",
+            "🖼️ Fotodokumentace",
+            "🤖 Gemini Asistent",
+        ]
+    )
+elif role_user == "editor":
+    tab_prehled, tab_novy, tab_edit, tab_pdf, tab_foto, tab_ai = st.tabs(
+        [
+            "📋 Přehled a úprava",
+            "➕ Přidat závadu",
+            "✏️ Detailní úprava",
+            "📄 Technická dokumentace",
+            "🖼️ Fotodokumentace",
+            "🤖 Gemini Asistent",
+        ]
+    )
+    tab_smazat = None  # Editor nemá tab smazat
+else:  # viewer
+    tab_prehled, tab_pdf, tab_foto, tab_ai = st.tabs(
+        [
+            "📋 Přehled (pouze čtení)",
+            "📄 Technická dokumentace",
+            "🖼️ Fotodokumentace",
+            "🤖 Gemini Asistent",
+        ]
+    )
+    tab_novy = None
+    tab_edit = None
+    tab_smazat = None
 
 # TAB 1: Přehled
 with tab_prehled:
