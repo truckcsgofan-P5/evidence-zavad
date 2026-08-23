@@ -402,82 +402,76 @@ with tab_prehled:
         )
         filtr_df = filtr_df[maska]
 
-    # 1. Převedení data před zobrazením v editoru (s českým formátem dayfirst=True)
-if "Datum" in filtr_df.columns:
-    filtr_df["Datum"] = pd.to_datetime(
-        filtr_df["Datum"], dayfirst=True, errors="coerce"
-    )
-
-edited_df = st.data_editor(
-    filtr_df,
-    use_container_width=True,
-    height=500,
-    num_rows="fixed",
-    disabled=["ID"],
-    column_config={
-        "Datum": st.column_config.DatetimeColumn(
-            "Datum",
-            format="DD.MM.YYYY",  # zobrazí datum i čas
-        ),
-        "ID": st.column_config.NumberColumn("ID", format="%d"),
-        "Kategorie": st.column_config.SelectboxColumn(
-            "Kategorie", options=KATEGORIE_LIST
-        ),
-        "Fotka": st.column_config.LinkColumn("Fotka"),
-    },
-    key="editor_zavad",
-)
-
-# 1. Úprava řádků z editoru a bezpečný zápis zmenených dat zpět do df
-if "Datum" in filtr_df.columns:
-    filtr_df["Datum"] = pd.to_datetime(
-        filtr_df["Datum"], dayfirst=True, errors="coerce"
-    )
-
-# 2. Tlačítko pro uložení (mimo cyklus)
-if st.button(
-    "💾 Uložit změny v tabulce",
-    type="primary",
-    key="btn_ulozit_zmeny_tabulka",
-):
-    for idx, row in edited_df.iterrows():
-        main_idx = df[df["ID"] == row["ID"]].index
-        if not main_idx.empty:
-            i = main_idx[0]
-            df.loc[i, "Lokomotiva"] = formatuj_lokomotivu(row["Lokomotiva"])
-            df.loc[i, "Kategorie"] = row["Kategorie"]
-
-            # Ukládáme jako datetime objekt (na formát řetězce se převede až v ulozit_df_do_bytes)
-            if pd.notna(row["Datum"]):
-                df.loc[i, "Datum"] = pd.to_datetime(row["Datum"], dayfirst=True)
-            else:
-                df.loc[i, "Datum"] = pd.NaT
-
-            df.loc[i, "Popis závady"] = (
-                str(row["Popis závady"]).strip()
-                if pd.notna(row["Popis závady"])
-                else ""
-            )
-            df.loc[i, "Poznámka"] = (
-                str(row["Poznámka"]).strip()
-                if pd.notna(row["Poznámka"])
-                else ""
-            )
-            df.loc[i, "Fotka"] = (
-                str(row["Fotka"]).strip()
-                if pd.notna(row.get("Fotka"))
-                else ""
-            )
-
-    ok, err = ulozit_databazi(df, "Hromadná úprava z tabulky")
-    if ok:
-        st.session_state["msg_tab1"] = (
-            "✅ Všechny změny z tabulky byly úspěšně uloženy!"
+    # TADY ZAČÍNÁ OPRAVA: Všechno odsud dolů musí být odsazené!
+    # 1. Převedení data před zobrazením v editoru
+    if "Datum" in filtr_df.columns:
+        filtr_df["Datum"] = pd.to_datetime(
+            filtr_df["Datum"], dayfirst=True, errors="coerce"
         )
-        st.rerun()
-    else:
-        st.error(f"Chyba při ukládání: {err}")
-    st.dataframe(df)
+
+    edited_df = st.data_editor(
+        filtr_df,
+        use_container_width=True,
+        height=500,
+        num_rows="fixed",
+        disabled=["ID"],
+        column_config={
+            "Datum": st.column_config.DateColumn(
+                "Datum",
+                format="DD.MM.YYYY",  # Zobrazí čistě jen datum
+            ),
+            "ID": st.column_config.NumberColumn("ID", format="%d"),
+            "Kategorie": st.column_config.SelectboxColumn(
+                "Kategorie", options=KATEGORIE_LIST
+            ),
+            "Fotka": st.column_config.LinkColumn("Fotka"),
+        },
+        key="editor_zavad",
+    )
+
+    # 2. Tlačítko pro uložení (stále odsazené pod with tab_prehled:)
+    if st.button(
+        "💾 Uložit změny v tabulce",
+        type="primary",
+        key="btn_ulozit_zmeny_tabulka",
+    ):
+        for idx, row in edited_df.iterrows():
+            main_idx = df[df["ID"] == row["ID"]].index
+            if not main_idx.empty:
+                i = main_idx[0]
+                df.loc[i, "Lokomotiva"] = formatuj_lokomotivu(row["Lokomotiva"])
+                df.loc[i, "Kategorie"] = row["Kategorie"]
+
+                # Ukládáme jako datetime objekt
+                if pd.notna(row["Datum"]):
+                    df.loc[i, "Datum"] = pd.to_datetime(row["Datum"], dayfirst=True)
+                else:
+                    df.loc[i, "Datum"] = pd.NaT
+
+                df.loc[i, "Popis závady"] = (
+                    str(row["Popis závady"]).strip()
+                    if pd.notna(row["Popis závady"])
+                    else ""
+                )
+                df.loc[i, "Poznámka"] = (
+                    str(row["Poznámka"]).strip()
+                    if pd.notna(row["Poznámka"])
+                    else ""
+                )
+                df.loc[i, "Fotka"] = (
+                    str(row["Fotka"]).strip()
+                    if pd.notna(row.get("Fotka"))
+                    else ""
+                )
+
+        ok, err = ulozit_databazi(df, "Hromadná úprava z tabulky")
+        if ok:
+            st.session_state["msg_tab1"] = (
+                "✅ Všechny změny z tabulky byly úspěšně uloženy!"
+            )
+            st.rerun()
+        else:
+            st.error(f"Chyba při ukládání: {err}")
 
 # TAB 2: Nová závada s podporou Gemini a ImgBB
 with tab_novy:
