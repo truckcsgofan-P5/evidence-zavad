@@ -503,7 +503,13 @@ with tab_prehled:
     textove_sloupce = ["Lokomotiva", "Popis závady", "Poznámka", "Fotka", "Kategorie", "Vytvořil", "Upravil"]
     for col in textove_sloupce:
         if col in filtr_df.columns:
-            filtr_df[col] = filtr_df[col].astype(str).replace({"None": "", "nan": "", "<NA>": ""})    
+            filtr_df[col] = filtr_df[col].astype(str).replace({"None": "", "nan": "", "<NA>": ""}) 
+
+    # 📌 NOVÉ: Odstraní text "bez fotky" ze sloupce Fotka, aby pole zůstalo čistě prázdné
+    if "Fotka" in filtr_df.columns:
+        filtr_df["Fotka"] = filtr_df["Fotka"].astype(str).replace(
+            {"bez fotky": "", "Bez fotky": ""}
+        ).str.strip()        
 
     # Zajistíme, že sloupce Vytvořil a Upravil v datovém rámci existují
     for col_autor in ["Vytvořil", "Upravil"]:
@@ -733,7 +739,7 @@ with tab_prehled:
                                 "Datum": pd.to_datetime(datum_input),
                                 "Popis závady": popis_input.strip(),
                                 "Poznámka": poznamka_input.strip(),
-                                "Fotka": url_fotky, # Uloží URL z ImgBB nebo z GitHubu
+                                "Fotka": url_fotky.strip(),
                                 "Vytvořil": st.session_state.get("uzivatel_jmeno", "Neznámý"),
                                 "Upravil": st.session_state.get("uzivatel_jmeno", "Neznámý"),
                             }
