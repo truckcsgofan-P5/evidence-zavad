@@ -329,7 +329,6 @@ def load_data():
         df = pd.read_excel(io.BytesIO(file_content.decoded_content))
     else:
         df = pd.read_excel(FILE_PATH)
-    return df
 
     if "Datum" in df.columns:
         df["Datum"] = pd.to_datetime(
