@@ -397,7 +397,7 @@ with tab_prehled:
     with col_f3:
         vyhledavani = st.text_input("Hledat v popisu nebo poznámce:")
 
-    filtr_df = df.copy()
+   filtr_df = df.copy()
     if vybrane_loko:
         filtr_df = filtr_df[
             filtr_df["Lokomotiva"].astype(str).isin(vybrane_loko)
@@ -412,12 +412,40 @@ with tab_prehled:
         )
         filtr_df = filtr_df[maska]
 
-    # TADY ZAČÍNÁ OPRAVA: Všechno odsud dolů musí být odsazené!
     # 1. Převedení data před zobrazením v editoru
     if "Datum" in filtr_df.columns:
         filtr_df["Datum"] = pd.to_datetime(
             filtr_df["Datum"], dayfirst=True, errors="coerce"
         )
+        
+        # 2. SEŘAZENÍ OD NEJNOVĚJŠÍHO DATA NAHORU
+        filtr_df = filtr_df.sort_values(by="Datum", ascending=False)
+
+    edited_df = st.data_editor(
+        filtr_df,
+        use_container_width=False,
+        height=500,
+        num_rows="fixed",
+        disabled=["ID"],
+        hide_index=True,
+        column_order=[
+            "ID",
+            "Datum",
+            "Lokomotiva",
+            "Popis závady",
+            "Poznámka",
+            "Fotka",
+            "Kategorie",
+        ],
+        column_config={
+            "Datum": st.column_config.DateColumn(
+                "Datum", format="DD.MM.YYYY"
+            ),
+            "ID": st.column_config.NumberColumn("ID", format="%d"),
+            "Fotka": st.column_config.LinkColumn("Fotka"),
+        },
+        key="editor_zavad",
+    )
 
     edited_df = st.data_editor(
     filtr_df,
