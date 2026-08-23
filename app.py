@@ -433,7 +433,7 @@ with tab_prehled:
                     row["Lokomotiva"]
                 )
                 df.loc[i, "Kategorie"] = row["Kategorie"]
-                df.loc[i, "Datum"] = pd.to_datetime(row["Datum"])
+                df.loc[i, "Datum"] = pd.to_datetime(row["Datum"]).strftime("%Y-%m-%d")
                 df.loc[i, "Popis závady"] = (
                     str(row["Popis závady"]).strip()
                     if pd.notna(row["Popis závady"])
