@@ -420,26 +420,57 @@ with tab_prehled:
         )
 
     edited_df = st.data_editor(
-        filtr_df,
-        use_container_width=True,
-        height=500,
-        num_rows="fixed",
-        disabled=["ID"],
-        hide_index=True,
-        column_order=["ID", "Datum", "Lokomotiva", "Popis závady", "Poznámka", "Fotka", "Kategorie"],
-        column_config={
-            "Datum": st.column_config.DateColumn(
-                "Datum",
-                format="DD.MM.YYYY",  # Zobrazí čistě jen datum
-            ),
-            "ID": st.column_config.NumberColumn("ID", format="%d"),
-            "Kategorie": st.column_config.SelectboxColumn(
-                "Kategorie", options=KATEGORIE_LIST
-            ),
-            "Fotka": st.column_config.LinkColumn("Fotka"),
-        },
-        key="editor_zavad",
-    )
+    filtr_df,
+    use_container_width=True,
+    height=500,
+    num_rows="fixed",
+    disabled=["ID"],
+    hide_index=True,
+    column_order=[
+        "ID",
+        "Lokomotiva",
+        "Kategorie",
+        "Datum",
+        "Popis závady",
+        "Poznámka",
+        "Fotka",
+    ],
+    column_config={
+        # Zde definujeme šířky sloupců, aby nebyly zbytečně roztažené
+        "ID": st.column_config.NumberColumn(
+            "ID", 
+            format="%d", 
+            width="small"
+        ),
+        "Lokomotiva": st.column_config.Column(
+            "Lokomotiva", 
+            width="small"
+        ),
+        "Datum": st.column_config.DateColumn(
+            "Datum", 
+            format="DD.MM.YYYY", 
+            width="small"
+        ),
+        "Kategorie": st.column_config.SelectboxColumn(
+            "Kategorie", 
+            options=KATEGORIE_LIST, 
+            width="small"
+        ),
+        "Popis závady": st.column_config.Column(
+            "Popis závady", 
+            width="medium"
+        ),
+        "Poznámka": st.column_config.Column(
+            "Poznámka", 
+            width="medium"
+        ),
+        "Fotka": st.column_config.LinkColumn(
+            "Fotka", 
+            width="small"
+        ),
+    },
+    key="editor_zavad",
+)
 
     # 2. Tlačítko pro uložení (stále odsazené pod with tab_prehled:)
     if st.button(
