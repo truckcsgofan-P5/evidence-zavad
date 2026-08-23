@@ -403,16 +403,18 @@ with tab_prehled:
         )
         filtr_df = filtr_df[maska]
 
-    edited_df = st.data_editor(
-        filtr_df,
-        use_container_width=True,
-        height=500,
-        num_rows="fixed",
-        disabled=["ID"],
-        column_config={
-            "Datum": st.column_config.DateColumn(
-                "Datum", format="DD.MM.YYYY"
-            ),
+    # Převeďte sloupec Datum na datetime, aby byl kompatibilní s DateColumn
+if "Datum" in filtr_df.columns:
+    filtr_df["Datum"] = pd.to_datetime(filtr_df["Datum"], errors="coerce")
+
+edited_df = st.data_editor(
+    filtr_df,
+    use_container_width=True,
+    height=500,
+    num_rows="fixed",
+    disabled=["ID"],
+    column_config={
+        "Datum": st.column_config.DateColumn("Datum", format="DD.MM.YYYY"),
             "ID": st.column_config.NumberColumn("ID", format="%d"),
             "Kategorie": st.column_config.SelectboxColumn(
                 "Kategorie", options=KATEGORIE_LIST
