@@ -724,6 +724,8 @@ with tab_prehled:
                                 "Popis závady": popis_input.strip(),
                                 "Poznámka": poznamka_input.strip(),
                                 "Fotka": url_fotky, # Uloží URL z ImgBB nebo z GitHubu
+                                "Vytvořil": st.session_state.get("uzivatel_jmeno", "Neznámý"),
+                                "Upravil": st.session_state.get("uzivatel_jmeno", "Neznámý"),
                             }
                         ]
                     )
