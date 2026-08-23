@@ -11,6 +11,7 @@ from google.genai import types
 import openpyxl
 import pandas as pd
 import streamlit as st
+from github import Github, GithubException
 
 st.set_page_config(
     page_title="Evidence závad lokomotiv", layout="wide", page_icon="🚆"
@@ -699,22 +700,117 @@ with tab_ai:
         else:
             st.warning("Napište dotaz.")
 
-# TAB: PDF Dokumentace
+# --- TAB: PDF Dokumentace ---
 with tab_pdf:
     st.title("📄 Technická dokumentace a PDF manuály")
-    st.caption("Prohlížení a stahování dokumentace k lokomotivám.")
+    st.caption("Ukládání a prohlížení PDF dokumentů přímo na GitHubu.")
 
-    uploaded_pdf = st.file_uploader(
-        "Nahrát nový PDF dokument (např. schémata, manuál):", type=["pdf"]
-    )
+    RADY_LOKOMOTIV = ["844", "814", "842", "Ostatní"]
+
+    # Načtení již nastavených konfiguračních údajů ze Streamlit Secrets
+    try:
+        github_token = st.secrets["GITHUB_TOKEN"]
+        repo_name = st.secrets["GITHUB_REPO"]
+        g = Github(github_token)
+        repo = g.get_repo(repo_name)
+    except Exception as e:
+        st.error(
+            "⚠️ Nepodařilo se načíst GITHUB_TOKEN nebo GITHUB_REPO ze Secrets."
+        )
+        st.stop()
+
+    # 1. FORMULÁŘ PRO NAHRÁNÍ NOVÉHO DOKUMENTU
+    st.subheader("➕ Nahrát nový dokument na GitHub")
+    col1, col2 = st.columns([1, 2])
+
+    with col1:
+        zvolena_rada = st.selectbox("Vyberte řadu lokomotivy:", RADY_LOKOMOTIV)
+
+    with col2:
+        uploaded_pdf = st.file_uploader(
+            "Vyberte PDF soubor:", type=["pdf"], key="github_pdf_uploader"
+        )
 
     if uploaded_pdf is not None:
-        st.success(f"Soubor '{uploaded_pdf.name}' byl úspěšně načten.")
-        
-        # Přečtení bajtů pro zobrazení
-        pdf_bytes = uploaded_pdf.getvalue()
-        base64_pdf = base64.b64encode(pdf_bytes).decode("utf-8")
+        file_path = f"docs_pdf/{zvolena_rada}/{uploaded_pdf.name}"
+        file_bytes = uploaded_pdf.getvalue()
 
-        # Náhled PDF přímo v aplikaci pomocí iframe
+        if st.button("🚀 Uložit na GitHub"):
+            with st.spinner("Ukládám soubor do GitHub repozitáře..."):
+                try:
+                    # Kontrola, zda soubor na GitHubu už neexistuje
+                    try:
+                        contents = repo.get_contents(file_path)
+                        # Pokud existuje -> přepíše / aktualizuje ho
+                        repo.update_file(
+                            path=file_path,
+                            message=f"Aktualizace dokumentu {uploaded_pdf.name} pro řadu {zvolena_rada}",
+                            content=file_bytes,
+                            sha=contents.sha,
+                        )
+                        st.success(
+                            f"✅ Soubor '{uploaded_pdf.name}' byl aktualizován na GitHubu!"
+                        )
+                    except GithubException:
+                        # Pokud ještě neexistuje -> vytvoří nový
+                        repo.create_file(
+                            path=file_path,
+                            message=f"Přidán dokument {uploaded_pdf.name} pro řadu {zvolena_rada}",
+                            content=file_bytes,
+                        )
+                        st.success(
+                            f"✅ Soubor '{uploaded_pdf.name}' byl úspěšně uložen na GitHub do složky {zvolena_rada}!"
+                        )
+
+                    st.rerun()  # Obnovení aplikace pro okamžité načtení nového souboru
+                except Exception as ex:
+                    st.error(f"Při ukládání došlo k chybě: {ex}")
+
+    st.divider()
+
+    # 2. PROHLÍŽEČ ULOŽENÝCH DOKUMENTŮ
+    st.subheader("📂 Prohlížet uložené dokumenty")
+
+    vybrana_rada_view = st.selectbox(
+        "Zobrazit dokumenty pro řadu:", RADY_LOKOMOTIV, key="view_select_github"
+    )
+
+    target_folder = f"docs_pdf/{vybrana_rada_view}"
+
+    # Načtení seznamu uložených PDF souborů z dané složky na GitHubu
+    try:
+        folder_contents = repo.get_contents(target_folder)
+        pdf_files = [
+            f for f in folder_contents if f.name.lower().endswith(".pdf")
+        ]
+    except GithubException:
+        pdf_files = []
+
+    if pdf_files:
+        soubor_dict = {f.name: f for f in pdf_files}
+        zvoleny_nazev = st.selectbox(
+            "Vyberte konkrétní dokument:", list(soubor_dict.keys())
+        )
+
+        selected_file_obj = soubor_dict[zvoleny_nazev]
+
+        # Stáhnutí obsahu vybraného PDF z GitHubu
+        file_data = selected_file_obj.decoded_content
+
+        # Tlačítko pro stažení
+        st.download_button(
+            label=f"⬇️ Stáhnout {zvoleny_nazev}",
+            data=file_data,
+            file_name=zvoleny_nazev,
+            mime="application/pdf",
+        )
+
+        # Náhled PDF dokumentu přímo na stránce
+        base64_pdf = base64.b64encode(file_data).decode("utf-8")
         pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="700" type="application/pdf"></iframe>'
         st.markdown(pdf_display, unsafe_allow_html=True)
+
+    else:
+        st.info(
+            f"Ve složce **{target_folder}** na GitHubu zatím nejsou žádná PDF."
+        )
