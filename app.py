@@ -447,12 +447,11 @@ if st.button(
             df.loc[i, "Lokomotiva"] = formatuj_lokomotivu(row["Lokomotiva"])
             df.loc[i, "Kategorie"] = row["Kategorie"]
 
-            # Správný zápis data VČETNĚ ČASU
+            # Ukládáme jako datetime objekt (na formát řetězce se převede až v ulozit_df_do_bytes)
             if pd.notna(row["Datum"]):
-                dt_val = pd.to_datetime(row["Datum"], dayfirst=True)
-                df.loc[i, "Datum"] = dt_val.strftime("%d.%m.%Y")
+                df.loc[i, "Datum"] = pd.to_datetime(row["Datum"], dayfirst=True)
             else:
-                df.loc[i, "Datum"] = ""
+                df.loc[i, "Datum"] = pd.NaT
 
             df.loc[i, "Popis závady"] = (
                 str(row["Popis závady"]).strip()
