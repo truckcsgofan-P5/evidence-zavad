@@ -403,26 +403,38 @@ with tab_prehled:
         )
         filtr_df = filtr_df[maska]
 
-    # Převeďte sloupec Datum na datetime, aby byl kompatibilní s DateColumn
-    if "Datum" in filtr_df.columns:
-        filtr_df["Datum"] = pd.to_datetime(filtr_df["Datum"], errors="coerce")
-
-    edited_df = st.data_editor(
-        filtr_df,
-        use_container_width=True,
-        height=500,
-        num_rows="fixed",
-        disabled=["ID"],
-        column_config={
-            "Datum": st.column_config.DateColumn("Datum", format="DD.MM.YYYY"),
-            "ID": st.column_config.NumberColumn("ID", format="%d"),
-            "Kategorie": st.column_config.SelectboxColumn(
-                "Kategorie", options=KATEGORIE_LIST
-            ),
-            "Fotka": st.column_config.LinkColumn("Fotka"),
-        },
-        key="editor_zavad",
+    # 1. Převedení data před zobrazením v editoru (s českým formátem dayfirst=True)
+if "Datum" in filtr_df.columns:
+    filtr_df["Datum"] = pd.to_datetime(
+        filtr_df["Datum"], dayfirst=True, errors="coerce"
     )
+
+edited_df = st.data_editor(
+    filtr_df,
+    use_container_width=True,
+    height=500,
+    num_rows="fixed",
+    disabled=["ID"],
+    column_config={
+        "Datum": st.column_config.DatetimeColumn(
+            "Datum",
+            format="DD.MM.YYYY HH:mm",  # zobrazí datum i čas
+        ),
+        "ID": st.column_config.NumberColumn("ID", format="%d"),
+        "Kategorie": st.column_config.SelectboxColumn(
+            "Kategorie", options=KATEGORIE_LIST
+        ),
+        "Fotka": st.column_config.LinkColumn("Fotka"),
+    },
+    key="editor_zavad",
+)
+
+# 2. Bezpečný zápis zmenených dat zpět do df
+for i, row in edited_df.iterrows():
+    if pd.notna(row["Datum"]):
+        # Převod na text tak, aby zůstal zachován český formát i s časem
+        dt_val = pd.to_datetime(row["Datum"], dayfirst=True)
+        df.loc[i, "Datum"] = dt_val.strftime("%d.%m.%Y %H:%M")
 
     if st.button("💾 Uložit změny v tabulce", type="primary"):
         for idx, row in edited_df.iterrows():
