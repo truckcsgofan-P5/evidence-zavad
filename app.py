@@ -676,15 +676,16 @@ with tab_edit:
                 datum_edit = st.date_input(
                     "Datum:", value=puvodni_datum, format="DD.MM.YYYY"
                 )
+                # Povolení nahrání fotky i videa
                 fotka_edit_file = st.file_uploader(
-                    "Nahrát novou fotku (nahradí původní):", 
-                    type=["png", "jpg", "jpeg"]
+                    "Nahrát novou fotku nebo video (nahradí původní):", 
+                    type=["png", "jpg", "jpeg", "mp4", "mov", "avi"]
                 )
 
             smazat_fotku_checkbox = False
             if puvodni_fotka and puvodni_fotka != "nan":
-                st.markdown(f"📎 Aktuální odkaz na fotku: [{puvodni_fotka}]({puvodni_fotka})")
-                smazat_fotku_checkbox = st.checkbox("❌ Smazat stávající fotku (odstranit odkaz)")
+                st.markdown(f"📎 Aktuální odkaz na soubor: [{puvodni_fotka}]({puvodni_fotka})")
+                smazat_fotku_checkbox = st.checkbox("❌ Smazat stávající fotku/video (odstranit odkaz)")
 
             popis_edit = st.text_area(
                 "Popis závady:", value=str(radek.get("Popis závady", ""))
@@ -701,11 +702,36 @@ with tab_edit:
             if smazat_fotku_checkbox:
                 cilova_fotka_url = ""
             elif fotka_edit_file is not None:
-                with st.spinner("Nahrávám novou fotku na ImgBB..."):
-                    novy_obrazek_bytes = fotka_edit_file.getvalue()
-                    nove_imgbb_url = nahraj_na_imgbb(novy_obrazek_bytes)
-                    if nove_imgbb_url:
-                        cilova_fotka_url = nove_imgbb_url
+                file_ext = fotka_edit_file.name.split(".")[-1].lower()
+                
+                if file_ext in ["mp4", "mov", "avi"]:
+                    # -- NAHRÁVÁNÍ VIDEA NA GITHUB --
+                    with st.spinner("Nahrávám nové video na GitHub..."):
+                        video_bytes = fotka_edit_file.getvalue()
+                        safe_name = fotka_edit_file.name.replace(" ", "_")
+                        github_path = f"docs_zavady_videa/zavada_{vybrane_id}_{safe_name}"
+                        
+                        try:
+                            github_token = st.secrets["GITHUB_TOKEN"]
+                            repo_name = st.secrets["GITHUB_REPO"]
+                            g = Github(github_token)
+                            temp_repo = g.get_repo(repo_name)
+                            
+                            temp_repo.create_file(
+                                path=github_path,
+                                message=f"Aktualizace/přidání videa k závadě ID {vybrane_id}",
+                                content=video_bytes
+                            )
+                            cilova_fotka_url = f"https://cdn.jsdelivr.net/gh/{repo_name}@main/{github_path}"
+                        except Exception as e:
+                            st.error(f"Chyba při nahrávání videa na GitHub: {e}")
+                else:
+                    # -- NAHRÁVÁNÍ FOTKY NA IMGBB --
+                    with st.spinner("Nahrávám novou fotku na ImgBB..."):
+                        novy_obrazek_bytes = fotka_edit_file.getvalue()
+                        nove_imgbb_url = nahraj_na_imgbb(novy_obrazek_bytes)
+                        if nove_imgbb_url:
+                            cilova_fotka_url = nove_imgbb_url
 
             idx = df[df["ID"] == vybrane_id].index[0]
             df.at[idx, "Lokomotiva"] = formatuj_lokomotivu(loko_edit)
