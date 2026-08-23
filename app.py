@@ -425,7 +425,7 @@ with tab_prehled:
         height=500,
         num_rows="fixed",
         disabled=["ID"],
-        hide_index=True
+        hide_index=True,
         column_order=["ID", "Lokomotiva", "Kategorie", "Datum", "Popis závady", "Poznámka", "Fotka"],
         column_config={
             "Datum": st.column_config.DateColumn(
