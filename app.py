@@ -316,13 +316,14 @@ def load_data():
 df = load_data()
 
 # --- ZÁLOŽKY APLIKACE ---
-tab_prehled, tab_novy, tab_edit, tab_smazat, tab_ai = st.tabs(
+tab_prehled, tab_novy, tab_edit, tab_smazat, tab_pdf, tab_ai = st.tabs(
     [
         "📋 Přehled a úprava",
-        "➕ Přidat novou závadu",
+        "➕ Přidat závadu",
         "✏️ Detailní úprava",
         "🗑️ Smazat závadu",
-        "🤖 Gemini AI Asistent",
+        "📄 PDF Dokumentace",
+        "🤖 Gemini Asistent",
     ]
 )
 
@@ -697,3 +698,23 @@ with tab_ai:
                 st.info(odpoved)
         else:
             st.warning("Napište dotaz.")
+
+# TAB: PDF Dokumentace
+with tab_pdf:
+    st.title("📄 Technická dokumentace a PDF manuály")
+    st.caption("Prohlížení a stahování dokumentace k lokomotivám.")
+
+    uploaded_pdf = st.file_uploader(
+        "Nahrát nový PDF dokument (např. schémata, manuál):", type=["pdf"]
+    )
+
+    if uploaded_pdf is not None:
+        st.success(f"Soubor '{uploaded_pdf.name}' byl úspěšně načten.")
+        
+        # Přečtení bajtů pro zobrazení
+        pdf_bytes = uploaded_pdf.getvalue()
+        base64_pdf = base64.b64encode(pdf_bytes).decode("utf-8")
+
+        # Náhled PDF přímo v aplikaci pomocí iframe
+        pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="700" type="application/pdf"></iframe>'
+        st.markdown(pdf_display, unsafe_allow_html=True)
