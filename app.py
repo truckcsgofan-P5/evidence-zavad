@@ -449,7 +449,7 @@ with tab_prehled:
         "Datum": st.column_config.DateColumn(
             "Datum", 
             format="DD.MM.YYYY", 
-            width=70
+            width=80
         ),
         "Kategorie": st.column_config.SelectboxColumn(
             "Kategorie", 
