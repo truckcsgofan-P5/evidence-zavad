@@ -429,48 +429,56 @@ edited_df = st.data_editor(
     key="editor_zavad",
 )
 
-# 2. Bezpečný zápis zmenených dat zpět do df
-for i, row in edited_df.iterrows():
-    if pd.notna(row["Datum"]):
-        # Převod na text tak, aby zůstal zachován český formát i s časem
-        dt_val = pd.to_datetime(row["Datum"], dayfirst=True)
-        df.loc[i, "Datum"] = dt_val.strftime("%d.%m.%Y %H:%M")
+# 1. Úprava řádků z editoru a bezpečný zápis zmenených dat zpět do df
+if "Datum" in filtr_df.columns:
+    filtr_df["Datum"] = pd.to_datetime(
+        filtr_df["Datum"], dayfirst=True, errors="coerce"
+    )
 
-    if st.button("💾 Uložit změny v tabulce", type="primary", key="btn_ulozit_zmeny_tabulka"):
-        for idx, row in edited_df.iterrows():
-            main_idx = df[df["ID"] == row["ID"]].index
-            if not main_idx.empty:
-                i = main_idx[0]
-                df.loc[i, "Lokomotiva"] = formatuj_lokomotivu(
-                    row["Lokomotiva"]
-                )
-                df.loc[i, "Kategorie"] = row["Kategorie"]
+# 2. Tlačítko pro uložení (mimo cyklus)
+if st.button(
+    "💾 Uložit změny v tabulce",
+    type="primary",
+    key="btn_ulozit_zmeny_tabulka",
+):
+    for idx, row in edited_df.iterrows():
+        main_idx = df[df["ID"] == row["ID"]].index
+        if not main_idx.empty:
+            i = main_idx[0]
+            df.loc[i, "Lokomotiva"] = formatuj_lokomotivu(row["Lokomotiva"])
+            df.loc[i, "Kategorie"] = row["Kategorie"]
+
+            # Správný zápis data VČETNĚ ČASU
             if pd.notna(row["Datum"]):
-                df.loc[i, "Datum"] = pd.to_datetime(row["Datum"]).strftime("%Y-%m-%d")
+                dt_val = pd.to_datetime(row["Datum"], dayfirst=True)
+                df.loc[i, "Datum"] = dt_val.strftime("%d.%m.%Y %H:%M")
             else:
                 df.loc[i, "Datum"] = ""
-                df.loc[i, "Popis závady"] = (
-                    str(row["Popis závady"]).strip()
-                    if pd.notna(row["Popis závady"])
-                    else ""
-                )
-                df.loc[i, "Poznámka"] = (
-                    str(row["Poznámka"]).strip()
-                    if pd.notna(row["Poznámka"])
-                    else ""
-                )
-                df.loc[i, "Fotka"] = (
-                    str(row["Fotka"]).strip()
-                    if pd.notna(row.get("Fotka"))
-                    else ""
-                )
 
-        ok, err = ulozit_databazi(df, "Hromadná úprava z tabulky")
-        if ok:
-            st.session_state["msg_tab1"] = "✅ Všechny změny z tabulky byly úspěšně uloženy!"
-            st.rerun()
-        else:
-            st.error(f"Chyba při ukládání: {err}")
+            df.loc[i, "Popis závady"] = (
+                str(row["Popis závady"]).strip()
+                if pd.notna(row["Popis závady"])
+                else ""
+            )
+            df.loc[i, "Poznámka"] = (
+                str(row["Poznámka"]).strip()
+                if pd.notna(row["Poznámka"])
+                else ""
+            )
+            df.loc[i, "Fotka"] = (
+                str(row["Fotka"]).strip()
+                if pd.notna(row.get("Fotka"))
+                else ""
+            )
+
+    ok, err = ulozit_databazi(df, "Hromadná úprava z tabulky")
+    if ok:
+        st.session_state["msg_tab1"] = (
+            "✅ Všechny změny z tabulky byly úspěšně uloženy!"
+        )
+        st.rerun()
+    else:
+        st.error(f"Chyba při ukládání: {err}")
 
 # TAB 2: Nová závada s podporou Gemini a ImgBB
 with tab_novy:
