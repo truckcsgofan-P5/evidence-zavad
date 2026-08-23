@@ -836,7 +836,7 @@ with tab_foto:
     st.title("🖼️ Fotodokumentace")
     st.caption("Ukládání a správa fotografií v podsložkách podle řad na GitHubu.")
 
-    RADY_LOKOMOTIV = ["844", "814", "754", "Ostatní"]
+    RADY_LOKOMOTIV = ["844", "842", "814", "954", "Ostatní"]
 
     # Načtení konfiguračních údajů ze Streamlit Secrets
     try:
