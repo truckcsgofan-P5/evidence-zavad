@@ -324,7 +324,7 @@ tab_prehled, tab_novy, tab_edit, tab_smazat, tab_pdf, tab_foto, tab_ai = st.tabs
         "➕ Přidat závadu",
         "✏️ Detailní úprava",
         "🗑️ Smazat závadu",
-        "📄 PDF Dokumentace",
+        "📄 Technická dokumentace",
         "🖼️ Fotodokumentace",
         "🤖 Gemini Asistent",
     ]
