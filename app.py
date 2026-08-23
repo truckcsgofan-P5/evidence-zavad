@@ -728,181 +728,183 @@ with tab_prehled:
                         st.error(f"Chyba při ukládání: {err}")            
 
 # TAB 3: Detailní úprava
-with tab_edit:
-    st.title("✏️ Úprava existující závady")
+if tab_edit:    
+    with tab_edit:
+        st.title("✏️ Úprava existující závady")
+        
+        if "msg_tab3" in st.session_state:
+            st.success(st.session_state["msg_tab3"])
+            del st.session_state["msg_tab3"]
     
-    if "msg_tab3" in st.session_state:
-        st.success(st.session_state["msg_tab3"])
-        del st.session_state["msg_tab3"]
-
-    if df.empty or "ID" not in df.columns:
-        st.warning("V databázi nejsou žádné záznamy k úpravě.")
-    else:
-        seznam_id = df["ID"].dropna().astype(int).tolist()
-        vybrane_id = st.selectbox(
-            "Vyberte ID závady k úpravě:", options=seznam_id, key="select_edit_id"
-        )
-        radek = df[df["ID"] == vybrane_id].iloc[0]
-
-        puvodni_loko = (
-            formatuj_lokomotivu(radek["Lokomotiva"])
-            if pd.notna(radek["Lokomotiva"])
-            else ""
-        )
-        puvodni_kat = (
-            str(radek["Kategorie"]) if pd.notna(radek["Kategorie"]) else ""
-        )
-        kat_index = (
-            KATEGORIE_LIST.index(puvodni_kat)
-            if puvodni_kat in KATEGORIE_LIST
-            else 0
-        )
-
-        puvodni_datum = (
-            pd.to_datetime(radek["Datum"]).date()
-            if pd.notna(radek["Datum"])
-            and not pd.isna(pd.to_datetime(radek["Datum"]))
-            else datetime.today().date()
-        )
-
-        puvodni_fotka = str(radek.get("Fotka", ""))
-
-        with st.form("form_edit_zavada"):
-            col_e1, col_e2 = st.columns(2)
-            with col_e1:
-                loko_edit = st.text_input("Lokomotiva:", value=puvodni_loko)
-                kategorie_edit = st.selectbox(
-                    "Kategorie:", options=KATEGORIE_LIST, index=kat_index
-                )
-            with col_e2:
-                datum_edit = st.date_input(
-                    "Datum:", value=puvodni_datum, format="DD.MM.YYYY"
-                )
-                # Povolení nahrání fotky i videa
-                fotka_edit_file = st.file_uploader(
-                    "Nahrát novou fotku nebo video (nahradí původní):", 
-                    type=["png", "jpg", "jpeg", "mp4", "mov", "avi"]
-                )
-
-            smazat_fotku_checkbox = False
-            if puvodni_fotka and puvodni_fotka != "nan":
-                st.markdown(f"📎 Aktuální odkaz na soubor: [{puvodni_fotka}]({puvodni_fotka})")
-                smazat_fotku_checkbox = st.checkbox("❌ Smazat stávající fotku/video (odstranit odkaz)")
-
-            popis_edit = st.text_area(
-                "Popis závady:", value=str(radek.get("Popis závady", ""))
+        if df.empty or "ID" not in df.columns:
+            st.warning("V databázi nejsou žádné záznamy k úpravě.")
+        else:
+            seznam_id = df["ID"].dropna().astype(int).tolist()
+            vybrane_id = st.selectbox(
+                "Vyberte ID závady k úpravě:", options=seznam_id, key="select_edit_id"
             )
-            poznamka_edit = st.text_input(
-                "Poznámka:", value=str(radek.get("Poznámka", ""))
+            radek = df[df["ID"] == vybrane_id].iloc[0]
+    
+            puvodni_loko = (
+                formatuj_lokomotivu(radek["Lokomotiva"])
+                if pd.notna(radek["Lokomotiva"])
+                else ""
             )
-
-            submit_edit = st.form_submit_button("Uložit změny", type="primary")
-
-        if submit_edit:
-            cilova_fotka_url = puvodni_fotka
-            
-            if smazat_fotku_checkbox:
-                cilova_fotka_url = ""
-            elif fotka_edit_file is not None:
-                file_ext = fotka_edit_file.name.split(".")[-1].lower()
+            puvodni_kat = (
+                str(radek["Kategorie"]) if pd.notna(radek["Kategorie"]) else ""
+            )
+            kat_index = (
+                KATEGORIE_LIST.index(puvodni_kat)
+                if puvodni_kat in KATEGORIE_LIST
+                else 0
+            )
+    
+            puvodni_datum = (
+                pd.to_datetime(radek["Datum"]).date()
+                if pd.notna(radek["Datum"])
+                and not pd.isna(pd.to_datetime(radek["Datum"]))
+                else datetime.today().date()
+            )
+    
+            puvodni_fotka = str(radek.get("Fotka", ""))
+    
+            with st.form("form_edit_zavada"):
+                col_e1, col_e2 = st.columns(2)
+                with col_e1:
+                    loko_edit = st.text_input("Lokomotiva:", value=puvodni_loko)
+                    kategorie_edit = st.selectbox(
+                        "Kategorie:", options=KATEGORIE_LIST, index=kat_index
+                    )
+                with col_e2:
+                    datum_edit = st.date_input(
+                        "Datum:", value=puvodni_datum, format="DD.MM.YYYY"
+                    )
+                    # Povolení nahrání fotky i videa
+                    fotka_edit_file = st.file_uploader(
+                        "Nahrát novou fotku nebo video (nahradí původní):", 
+                        type=["png", "jpg", "jpeg", "mp4", "mov", "avi"]
+                    )
+    
+                smazat_fotku_checkbox = False
+                if puvodni_fotka and puvodni_fotka != "nan":
+                    st.markdown(f"📎 Aktuální odkaz na soubor: [{puvodni_fotka}]({puvodni_fotka})")
+                    smazat_fotku_checkbox = st.checkbox("❌ Smazat stávající fotku/video (odstranit odkaz)")
+    
+                popis_edit = st.text_area(
+                    "Popis závady:", value=str(radek.get("Popis závady", ""))
+                )
+                poznamka_edit = st.text_input(
+                    "Poznámka:", value=str(radek.get("Poznámka", ""))
+                )
+    
+                submit_edit = st.form_submit_button("Uložit změny", type="primary")
+    
+            if submit_edit:
+                cilova_fotka_url = puvodni_fotka
                 
-                if file_ext in ["mp4", "mov", "avi"]:
-                    # -- NAHRÁVÁNÍ VIDEA NA GITHUB --
-                    with st.spinner("Nahrávám nové video na GitHub..."):
-                        video_bytes = fotka_edit_file.getvalue()
-                        safe_name = fotka_edit_file.name.replace(" ", "_")
-                        github_path = f"docs_zavady_videa/zavada_{vybrane_id}_{safe_name}"
-                        
-                        try:
-                            github_token = st.secrets["GITHUB_TOKEN"]
-                            repo_name = st.secrets["GITHUB_REPO"]
-                            g = Github(github_token)
-                            temp_repo = g.get_repo(repo_name)
+                if smazat_fotku_checkbox:
+                    cilova_fotka_url = ""
+                elif fotka_edit_file is not None:
+                    file_ext = fotka_edit_file.name.split(".")[-1].lower()
+                    
+                    if file_ext in ["mp4", "mov", "avi"]:
+                        # -- NAHRÁVÁNÍ VIDEA NA GITHUB --
+                        with st.spinner("Nahrávám nové video na GitHub..."):
+                            video_bytes = fotka_edit_file.getvalue()
+                            safe_name = fotka_edit_file.name.replace(" ", "_")
+                            github_path = f"docs_zavady_videa/zavada_{vybrane_id}_{safe_name}"
                             
-                            temp_repo.create_file(
-                                path=github_path,
-                                message=f"Aktualizace/přidání videa k závadě ID {vybrane_id}",
-                                content=video_bytes
-                            )
-                            cilova_fotka_url = f"https://cdn.jsdelivr.net/gh/{repo_name}@main/{github_path}"
-                        except Exception as e:
-                            st.error(f"Chyba při nahrávání videa na GitHub: {e}")
-                else:
-                    # -- NAHRÁVÁNÍ FOTKY NA IMGBB --
-                    with st.spinner("Nahrávám novou fotku na ImgBB..."):
-                        novy_obrazek_bytes = fotka_edit_file.getvalue()
-                        nove_imgbb_url = nahraj_na_imgbb(novy_obrazek_bytes)
-                        if nove_imgbb_url:
-                            cilova_fotka_url = nove_imgbb_url
-
-            idx = df[df["ID"] == vybrane_id].index[0]
-            df.at[idx, "Lokomotiva"] = formatuj_lokomotivu(loko_edit)
-            df.at[idx, "Kategorie"] = kategorie_edit
-            df.at[idx, "Datum"] = pd.to_datetime(datum_edit)
-            df.at[idx, "Popis závady"] = popis_edit.strip()
-            df.at[idx, "Poznámka"] = poznamka_edit.strip()
-            df.at[idx, "Fotka"] = cilova_fotka_url.strip()
-
-            ok, err = ulozit_databazi(df, f"Úprava závady ID {vybrane_id}")
-            if ok:
-                st.session_state["msg_tab3"] = f"✅ Závada ID {vybrane_id} byla úspěšně aktualizována!"
-                st.rerun()
-            else:
-                st.error(f"Chyba při ukládání: {err}")           
-
-# TAB 4: Smazat
-with tab_smazat:
-    st.title("🗑️ Odstranění závady")
+                            try:
+                                github_token = st.secrets["GITHUB_TOKEN"]
+                                repo_name = st.secrets["GITHUB_REPO"]
+                                g = Github(github_token)
+                                temp_repo = g.get_repo(repo_name)
+                                
+                                temp_repo.create_file(
+                                    path=github_path,
+                                    message=f"Aktualizace/přidání videa k závadě ID {vybrane_id}",
+                                    content=video_bytes
+                                )
+                                cilova_fotka_url = f"https://cdn.jsdelivr.net/gh/{repo_name}@main/{github_path}"
+                            except Exception as e:
+                                st.error(f"Chyba při nahrávání videa na GitHub: {e}")
+                    else:
+                        # -- NAHRÁVÁNÍ FOTKY NA IMGBB --
+                        with st.spinner("Nahrávám novou fotku na ImgBB..."):
+                            novy_obrazek_bytes = fotka_edit_file.getvalue()
+                            nove_imgbb_url = nahraj_na_imgbb(novy_obrazek_bytes)
+                            if nove_imgbb_url:
+                                cilova_fotka_url = nove_imgbb_url
     
-    if "msg_tab4" in st.session_state:
-        st.success(st.session_state["msg_tab4"])
-        del st.session_state["msg_tab4"]
-
-    if df.empty or "ID" not in df.columns:
-        st.warning("V databázi nejsou žádné záznamy ke smazání.")
-    else:
-        seznam_id_del = df["ID"].dropna().astype(int).tolist()
-        vybrane_id_del = st.selectbox(
-            "Vyberte ID závady k smazání:", options=seznam_id_del
-        )
-        radek_del = df[df["ID"] == vybrane_id_del].iloc[0]
-
-        datum_zobraz = (
-            pd.to_datetime(radek_del["Datum"]).strftime("%d.%m.%Y")
-            if pd.notna(radek_del.get("Datum"))
-            and not pd.isna(pd.to_datetime(radek_del.get("Datum")))
-            else "Neuvedeno"
-        )
-
-        st.markdown("### 📄 Detail vybraného záznamu k odstranění:")
-        st.info(
-            f"**ID závady:** {radek_del.get('ID', '')}\n\n"
-            f"**Lokomotiva:** {radek_del.get('Lokomotiva', '')}\n\n"
-            f"**Kategorie:** {radek_del.get('Kategorie', '')}\n\n"
-            f"**Datum zjištění:** {datum_zobraz}\n\n"
-            f"**Popis závady:** {radek_del.get('Popis závady', 'Bez popisu')}\n\n"
-            f"**Poznámka:** {radek_del.get('Poznámka', 'Bez poznámky')}\n\n"
-            f"**Fotka:** {radek_del.get('Fotka', 'Bez fotky')}"
-        )
-
-        st.warning(
-            f"⚠️ Opravdu chcete trvale smazat tuto závadu pro lokomotivu **{radek_del['Lokomotiva']}**?"
-        )
-        potvrzeni = st.checkbox("Rozumím, opravdu chci trvale smazat")
-
-        if st.button("🗑️ Trvale smazat záznam", type="primary"):
-            if not potvrzeni:
-                st.error("Zaškrtněte potvrzovací políčko.")
-            else:
-                upraveny_df = df[df["ID"] != vybrane_id_del].copy()
-                ok, err = ulozit_databazi(
-                    upraveny_df, f"Smazána závada ID {vybrane_id_del}"
-                )
+                idx = df[df["ID"] == vybrane_id].index[0]
+                df.at[idx, "Lokomotiva"] = formatuj_lokomotivu(loko_edit)
+                df.at[idx, "Kategorie"] = kategorie_edit
+                df.at[idx, "Datum"] = pd.to_datetime(datum_edit)
+                df.at[idx, "Popis závady"] = popis_edit.strip()
+                df.at[idx, "Poznámka"] = poznamka_edit.strip()
+                df.at[idx, "Fotka"] = cilova_fotka_url.strip()
+    
+                ok, err = ulozit_databazi(df, f"Úprava závady ID {vybrane_id}")
                 if ok:
-                    st.session_state["msg_tab4"] = "✅ Záznam byl úspěšně trvale smazán!"
+                    st.session_state["msg_tab3"] = f"✅ Závada ID {vybrane_id} byla úspěšně aktualizována!"
                     st.rerun()
                 else:
-                    st.error(f"Chyba: {err}")
+                    st.error(f"Chyba při ukládání: {err}")           
+
+# TAB 4: Smazat
+if tab_smazat:    
+    with tab_smazat:
+        st.title("🗑️ Odstranění závady")
+        
+        if "msg_tab4" in st.session_state:
+            st.success(st.session_state["msg_tab4"])
+            del st.session_state["msg_tab4"]
+    
+        if df.empty or "ID" not in df.columns:
+            st.warning("V databázi nejsou žádné záznamy ke smazání.")
+        else:
+            seznam_id_del = df["ID"].dropna().astype(int).tolist()
+            vybrane_id_del = st.selectbox(
+                "Vyberte ID závady k smazání:", options=seznam_id_del
+            )
+            radek_del = df[df["ID"] == vybrane_id_del].iloc[0]
+    
+            datum_zobraz = (
+                pd.to_datetime(radek_del["Datum"]).strftime("%d.%m.%Y")
+                if pd.notna(radek_del.get("Datum"))
+                and not pd.isna(pd.to_datetime(radek_del.get("Datum")))
+                else "Neuvedeno"
+            )
+    
+            st.markdown("### 📄 Detail vybraného záznamu k odstranění:")
+            st.info(
+                f"**ID závady:** {radek_del.get('ID', '')}\n\n"
+                f"**Lokomotiva:** {radek_del.get('Lokomotiva', '')}\n\n"
+                f"**Kategorie:** {radek_del.get('Kategorie', '')}\n\n"
+                f"**Datum zjištění:** {datum_zobraz}\n\n"
+                f"**Popis závady:** {radek_del.get('Popis závady', 'Bez popisu')}\n\n"
+                f"**Poznámka:** {radek_del.get('Poznámka', 'Bez poznámky')}\n\n"
+                f"**Fotka:** {radek_del.get('Fotka', 'Bez fotky')}"
+            )
+    
+            st.warning(
+                f"⚠️ Opravdu chcete trvale smazat tuto závadu pro lokomotivu **{radek_del['Lokomotiva']}**?"
+            )
+            potvrzeni = st.checkbox("Rozumím, opravdu chci trvale smazat")
+    
+            if st.button("🗑️ Trvale smazat záznam", type="primary"):
+                if not potvrzeni:
+                    st.error("Zaškrtněte potvrzovací políčko.")
+                else:
+                    upraveny_df = df[df["ID"] != vybrane_id_del].copy()
+                    ok, err = ulozit_databazi(
+                        upraveny_df, f"Smazána závada ID {vybrane_id_del}"
+                    )
+                    if ok:
+                        st.session_state["msg_tab4"] = "✅ Záznam byl úspěšně trvale smazán!"
+                        st.rerun()
+                    else:
+                        st.error(f"Chyba: {err}")
 
 # TAB 5: Gemini AI Chat nad databází
 with tab_ai:
