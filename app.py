@@ -286,7 +286,7 @@ def ulozit_df_do_bytes(df_to_save):
     df_copy = df_to_save.copy()
     if "Datum" in df_copy.columns:
         df_copy["Datum"] = pd.to_datetime(
-            df_copy["Datum"], errors="coerce"
+            df_copy["Datum"], dayfirst=True, errors="coerce" # Přidáno dayfirst=True
         ).dt.strftime("%d.%m.%Y")
 
     output = io.BytesIO()
