@@ -421,7 +421,7 @@ with tab_prehled:
 
     edited_df = st.data_editor(
     filtr_df,
-    use_container_width=True,
+    use_container_width=False,
     height=500,
     num_rows="fixed",
     disabled=["ID"],
