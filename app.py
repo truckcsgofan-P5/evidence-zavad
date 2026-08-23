@@ -792,25 +792,26 @@ with tab_pdf:
             "Vyberte konkrétní dokument:", list(soubor_dict.keys())
         )
 
+        # TENTO ŘÁDEK ZDE ZŮSTÁVÁ:
         selected_file_obj = soubor_dict[zvoleny_nazev]
 
-        # Stáhnutí obsahu vybraného PDF z GitHubu
-        file_data = selected_file_obj.decoded_content
+        # Stažení přes přímou URL (oprava chyby s base64):
+        file_url = selected_file_obj.download_url
+        headers = {"Authorization": f"token {github_token}"}
+        response = requests.get(file_url, headers=headers)
 
-        # Tlačítko pro stažení
-        st.download_button(
-            label=f"⬇️ Stáhnout {zvoleny_nazev}",
-            data=file_data,
-            file_name=zvoleny_nazev,
-            mime="application/pdf",
-        )
+        if response.status_code == 200:
+            file_data = response.content
 
-        # Náhled PDF dokumentu přímo na stránce
-        base64_pdf = base64.b64encode(file_data).decode("utf-8")
-        pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="700" type="application/pdf"></iframe>'
-        st.markdown(pdf_display, unsafe_allow_html=True)
+            st.download_button(
+                label=f"⬇️ Stáhnout {zvoleny_nazev}",
+                data=file_data,
+                file_name=zvoleny_nazev,
+                mime="application/pdf",
+            )
 
-    else:
-        st.info(
-            f"Ve složce **{target_folder}** na GitHubu zatím nejsou žádná PDF."
-        )
+            base64_pdf = base64.b64encode(file_data).decode("utf-8")
+            pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="700" type="application/pdf"></iframe>'
+            st.markdown(pdf_display, unsafe_allow_html=True)
+        else:
+            st.error("Nepodařilo se stáhnout dokument z GitHubu.")
