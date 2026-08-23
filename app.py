@@ -301,7 +301,7 @@ def ulozit_databazi(df_to_save, commit_msg):
         autor = st.session_state.get("uzivatel_jmeno", "Neznámý")
 
         if "GITHUB_TOKEN" in st.secrets:
-            g = github.Github(st.secrets["GITHUB_TOKEN"])
+            g = Github(st.secrets["GITHUB_TOKEN"])
             repo = g.get_repo(st.secrets["REPO_NAME"])
             contents = repo.get_contents(FILE_PATH)
             repo.update_file(
