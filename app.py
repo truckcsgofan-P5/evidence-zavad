@@ -443,6 +443,10 @@ else:  # viewer
 with tab_prehled:
     st.title("📋 Přehled a úprava závad")
     
+    # Načtení role a ověření oprávnění k editaci
+    role_user = st.session_state.get("uzivatel_role", "viewer").lower()
+    je_editor = role_user in ["admin", "editor"]
+
     if "msg_tab1" in st.session_state:
         st.success(st.session_state["msg_tab1"])
         del st.session_state["msg_tab1"]
@@ -484,13 +488,13 @@ with tab_prehled:
         )
         filtr_df = filtr_df.sort_values(by="Datum", ascending=False)
 
-    # 2. Jediné správné zobrazení tabulky s nastavenými šířkami
+    # 2. Jediné správné zobrazení tabulky (disabled=True uzamkne vše pro role viewer)
     edited_df = st.data_editor(
         filtr_df,
         use_container_width=False,
         height=500,
         num_rows="fixed",
-        disabled=["ID"],
+        disabled=True if not je_editor else ["ID"],
         hide_index=True,
         column_order=[
             "ID",
@@ -537,48 +541,51 @@ with tab_prehled:
         key="editor_zavad",
     )
 
-    # 3. Tlačítko pro uložení změn z tabulky
-    if st.button(
-        "💾 Uložit změny v tabulce",
-        type="primary",
-        key="btn_ulozit_zmeny_tabulka",
-    ):
-        for idx, row in edited_df.iterrows():
-            main_idx = df[df["ID"] == row["ID"]].index
-            if not main_idx.empty:
-                i = main_idx[0]
-                df.loc[i, "Lokomotiva"] = formatuj_lokomotivu(row["Lokomotiva"])
-                df.loc[i, "Kategorie"] = row["Kategorie"]
+    # 3. Tlačítko pro uložení změn se zobrazí jen Adminům a Editorům
+    if je_editor:
+        if st.button(
+            "💾 Uložit změny v tabulce",
+            type="primary",
+            key="btn_ulozit_zmeny_tabulka",
+        ):
+            for idx, row in edited_df.iterrows():
+                main_idx = df[df["ID"] == row["ID"]].index
+                if not main_idx.empty:
+                    i = main_idx[0]
+                    df.loc[i, "Lokomotiva"] = formatuj_lokomotivu(row["Lokomotiva"])
+                    df.loc[i, "Kategorie"] = row["Kategorie"]
 
-                if pd.notna(row["Datum"]):
-                    df.loc[i, "Datum"] = pd.to_datetime(row["Datum"], dayfirst=True)
-                else:
-                    df.loc[i, "Datum"] = pd.NaT
+                    if pd.notna(row["Datum"]):
+                        df.loc[i, "Datum"] = pd.to_datetime(row["Datum"], dayfirst=True)
+                    else:
+                        df.loc[i, "Datum"] = pd.NaT
 
-                df.loc[i, "Popis závady"] = (
-                    str(row["Popis závady"]).strip()
-                    if pd.notna(row["Popis závady"])
-                    else ""
-                )
-                df.loc[i, "Poznámka"] = (
-                    str(row["Poznámka"]).strip()
-                    if pd.notna(row["Poznámka"])
-                    else ""
-                )
-                df.loc[i, "Fotka"] = (
-                    str(row["Fotka"]).strip()
-                    if pd.notna(row.get("Fotka"))
-                    else ""
-                )
+                    df.loc[i, "Popis závady"] = (
+                        str(row["Popis závady"]).strip()
+                        if pd.notna(row["Popis závady"])
+                        else ""
+                    )
+                    df.loc[i, "Poznámka"] = (
+                        str(row["Poznámka"]).strip()
+                        if pd.notna(row["Poznámka"])
+                        else ""
+                    )
+                    df.loc[i, "Fotka"] = (
+                        str(row["Fotka"]).strip()
+                        if pd.notna(row.get("Fotka"))
+                        else ""
+                    )
 
-        ok, err = ulozit_databazi(df, "Hromadná úprava z tabulky")
-        if ok:
-            st.session_state["msg_tab1"] = (
-                "✅ Všechny změny z tabulky byly úspěšně uloženy!"
-            )
-            st.rerun()
-        else:
-            st.error(f"Chyba při ukládání: {err}")
+            ok, err = ulozit_databazi(df, "Hromadná úprava z tabulky")
+            if ok:
+                st.session_state["msg_tab1"] = (
+                    "✅ Všechny změny z tabulky byly úspěšně uloženy!"
+                )
+                st.rerun()
+            else:
+                st.error(f"Chyba při ukládání: {err}")
+    else:
+        st.info("ℹ️ Jste přihlášeni v režimu prohlížení. Pro úpravu dat v tabulce je vyžadována role Editor nebo Admin.")
 # TAB 2: Nová závada s podporou Gemini, ImgBB a videí na GitHubu
 with tab_novy:
     st.title("➕ Zapsat novou závadu")
