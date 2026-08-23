@@ -473,7 +473,7 @@ with tab_prehled:
         else:
             st.error(f"Chyba při ukládání: {err}")
 
-# TAB 2: Nová závada s podporou Gemini a ImgBB
+# TAB 2: Nová závada s podporou Gemini, ImgBB a videí na GitHubu
 with tab_novy:
     st.title("➕ Zapsat novou závadu")
 
@@ -502,9 +502,10 @@ with tab_novy:
             datum_input = st.date_input(
                 "Datum zjištění závady:", format="DD.MM.YYYY"
             )
-            fotka_input = st.file_uploader(
-                "Nahrát fotku závady (volitelné):", 
-                type=["png", "jpg", "jpeg"]
+            # 1. ZMĚNA: Povolení video formátů ve file_uploaderu
+            media_input = st.file_uploader(
+                "Nahrát fotku nebo video závady (volitelné):", 
+                type=["png", "jpg", "jpeg", "mp4", "mov", "avi"]
             )
 
         popis_input = st.text_area(
@@ -546,17 +547,46 @@ with tab_novy:
         if not loko_input or not popis_input:
             st.error("Vyplňte prosím lokomotivu a popis závady.")
         else:
-            url_fotky = ""
-            if fotka_input is not None:
-                with st.spinner("Nahrávám fotku na ImgBB..."):
-                    obrazek_bytes = fotka_input.getvalue()
-                    imgbb_url = nahraj_na_imgbb(obrazek_bytes)
-                    if imgbb_url:
-                        url_fotky = imgbb_url
-
+            # 2. ZMĚNA: Výpočet ID přesunut sem nahoru, abychom ho mohli použít v názvu videa
             nove_id = (
                 int(df["ID"].max()) + 1 if not df.empty and "ID" in df else 1
             )
+            
+            url_fotky = ""
+            
+            if media_input is not None:
+                # Zjištění přípony souboru
+                file_ext = media_input.name.split(".")[-1].lower()
+                
+                # Zpracování podle toho, zda je to video nebo fotka
+                if file_ext in ["mp4", "mov", "avi"]:
+                    # -- ZPRACOVÁNÍ VIDEA (GITHUB) --
+                    with st.spinner("Nahrávám video na GitHub (může to chvíli trvat)..."):
+                        video_bytes = media_input.getvalue()
+                        safe_name = media_input.name.replace(" ", "_")
+                        # Uložíme do speciální složky pro videa k závadám
+                        github_path = f"docs_zavady_videa/zavada_{nove_id}_{safe_name}"
+                        
+                        try:
+                            # Předpokládáme, že objekt 'repo' a 'repo_name' máte definovaný (např. z předchozí záložky)
+                            repo.create_file(
+                                path=github_path,
+                                message=f"Přidáno video k závadě ID {nove_id}",
+                                content=video_bytes
+                            )
+                            # Vygenerování funkčního odkazu
+                            url_fotky = f"https://cdn.jsdelivr.net/gh/{repo_name}@main/{github_path}"
+                        except Exception as e:
+                            st.error(f"Chyba při nahrávání videa na GitHub: {e}")
+                            
+                else:
+                    # -- ZPRACOVÁNÍ FOTKY (IMGBB) --
+                    with st.spinner("Nahrávám fotku na ImgBB..."):
+                        obrazek_bytes = media_input.getvalue()
+                        imgbb_url = nahraj_na_imgbb(obrazek_bytes)
+                        if imgbb_url:
+                            url_fotky = imgbb_url
+
             novy_radek = pd.DataFrame(
                 [
                     {
@@ -566,7 +596,7 @@ with tab_novy:
                         "Datum": pd.to_datetime(datum_input),
                         "Popis závady": popis_input.strip(),
                         "Poznámka": poznamka_input.strip(),
-                        "Fotka": url_fotky,
+                        "Fotka": url_fotky, # Uloží URL z ImgBB nebo z GitHubu
                     }
                 ]
             )
