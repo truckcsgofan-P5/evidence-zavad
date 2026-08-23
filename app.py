@@ -477,6 +477,7 @@ if st.button(
         st.rerun()
     else:
         st.error(f"Chyba při ukládání: {err}")
+    st.dataframe(df)
 
 # TAB 2: Nová závada s podporou Gemini a ImgBB
 with tab_novy:
@@ -587,6 +588,7 @@ with tab_novy:
                 st.rerun()
             else:
                 st.error(f"Chyba při ukládání: {err}")
+    st.dataframe(df)            
 
 # TAB 3: Detailní úprava
 with tab_edit:
@@ -684,6 +686,7 @@ with tab_edit:
                 st.rerun()
             else:
                 st.error(f"Chyba při ukládání: {err}")
+    st.dataframe(df)           
 
 # TAB 4: Smazat
 with tab_smazat:
