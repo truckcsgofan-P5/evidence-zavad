@@ -12,6 +12,7 @@ import openpyxl
 import pandas as pd
 import streamlit as st
 from github import Github, GithubException
+from streamlit_pdf_viewer import pdf_viewer
 
 st.set_page_config(
     page_title="Evidence závad lokomotiv", layout="wide", page_icon="🚆"
@@ -786,16 +787,14 @@ with tab_pdf:
     except GithubException:
         pdf_files = []
 
-    if pdf_files:
+   if pdf_files:
         soubor_dict = {f.name: f for f in pdf_files}
         zvoleny_nazev = st.selectbox(
-            "Vyberte konkrétní dokument:", list(soubor_dict.keys())
+            "Vyberte dokument k prohlížení:", list(soubor_dict.keys())
         )
 
-        # TENTO ŘÁDEK ZDE ZŮSTÁVÁ:
         selected_file_obj = soubor_dict[zvoleny_nazev]
 
-        # Stažení přes přímou URL (oprava chyby s base64):
         file_url = selected_file_obj.download_url
         headers = {"Authorization": f"token {github_token}"}
         response = requests.get(file_url, headers=headers)
@@ -803,15 +802,16 @@ with tab_pdf:
         if response.status_code == 200:
             file_data = response.content
 
-            st.download_button(
-                label=f"⬇️ Stáhnout {zvoleny_nazev}",
-                data=file_data,
-                file_name=zvoleny_nazev,
-                mime="application/pdf",
-            )
+            col_dl, _ = st.columns([1, 3])
+            with col_dl:
+                st.download_button(
+                    label=f"💾 Stáhnout kopii ({zvoleny_nazev})",
+                    data=file_data,
+                    file_name=zvoleny_nazev,
+                    mime="application/pdf",
+                )
 
-            base64_pdf = base64.b64encode(file_data).decode("utf-8")
-            pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="700" type="application/pdf"></iframe>'
-            st.markdown(pdf_display, unsafe_allow_html=True)
+            # PROHLÍŽEČ BEZ BLOKOVÁNÍ CHROME
+            pdf_viewer(input=file_data, width=700, height=800)
         else:
-            st.error("Nepodařilo se stáhnout dokument z GitHubu.")
+            st.error("Dokument se nepodařilo načíst pro prohlížení.")
