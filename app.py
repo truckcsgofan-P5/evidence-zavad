@@ -417,8 +417,7 @@ with tab_prehled:
         filtr_df["Datum"] = pd.to_datetime(
             filtr_df["Datum"], dayfirst=True, errors="coerce"
         )
-        
-        # 2. SEŘAZENÍ OD NEJNOVĚJŠÍHO DATA NAHORU
+        # Seřazení od nejnovějšího data
         filtr_df = filtr_df.sort_values(by="Datum", ascending=False)
 
     edited_df = st.data_editor(
