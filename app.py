@@ -436,7 +436,7 @@ for i, row in edited_df.iterrows():
         dt_val = pd.to_datetime(row["Datum"], dayfirst=True)
         df.loc[i, "Datum"] = dt_val.strftime("%d.%m.%Y %H:%M")
 
-    if st.button("💾 Uložit změny v tabulce", type="primary"):
+    if st.button("💾 Uložit změny v tabulce", type="primary", key="btn_ulozit_zmeny_tabulka"):
         for idx, row in edited_df.iterrows():
             main_idx = df[df["ID"] == row["ID"]].index
             if not main_idx.empty:
