@@ -397,7 +397,7 @@ with tab_prehled:
     with col_f3:
         vyhledavani = st.text_input("Hledat v popisu nebo poznámce:")
 
- filtr_df = df.copy()
+    filtr_df = df.copy()
     if vybrane_loko:
         filtr_df = filtr_df[
             filtr_df["Lokomotiva"].astype(str).isin(vybrane_loko)
@@ -412,14 +412,14 @@ with tab_prehled:
         )
         filtr_df = filtr_df[maska]
 
-    # 1. Převedení data před zobrazením v editoru
+    # 1. Převedení data a seřazení od nejnovějšího
     if "Datum" in filtr_df.columns:
         filtr_df["Datum"] = pd.to_datetime(
             filtr_df["Datum"], dayfirst=True, errors="coerce"
         )
-        # Seřazení od nejnovějšího data
         filtr_df = filtr_df.sort_values(by="Datum", ascending=False)
 
+    # 2. Jediné správné zobrazení tabulky s nastavenými šířkami
     edited_df = st.data_editor(
         filtr_df,
         use_container_width=False,
@@ -437,69 +437,42 @@ with tab_prehled:
             "Kategorie",
         ],
         column_config={
-            "Datum": st.column_config.DateColumn(
-                "Datum", format="DD.MM.YYYY"
+            "ID": st.column_config.NumberColumn(
+                "ID", 
+                format="%d", 
+                width=35
             ),
-            "ID": st.column_config.NumberColumn("ID", format="%d"),
-            "Fotka": st.column_config.LinkColumn("Fotka"),
+            "Lokomotiva": st.column_config.Column(
+                "Lokomotiva", 
+                width=90
+            ),
+            "Datum": st.column_config.DateColumn(
+                "Datum", 
+                format="DD.MM.YYYY", 
+                width=100
+            ),
+            "Kategorie": st.column_config.SelectboxColumn(
+                "Kategorie", 
+                options=KATEGORIE_LIST, 
+                width=140
+            ),
+            "Popis závady": st.column_config.Column(
+                "Popis závady", 
+                width=330
+            ),
+            "Poznámka": st.column_config.Column(
+                "Poznámka", 
+                width=200
+            ),
+            "Fotka": st.column_config.LinkColumn(
+                "Fotka", 
+                width=100
+            ),
         },
         key="editor_zavad",
     )
 
-    edited_df = st.data_editor(
-    filtr_df,
-    use_container_width=False,
-    height=500,
-    num_rows="fixed",
-    disabled=["ID"],
-    hide_index=True,
-    column_order=[
-        "ID",
-        "Datum",
-        "Lokomotiva",
-        "Popis závady",
-        "Poznámka",
-        "Fotka",
-        "Kategorie",
-    ],
-    column_config={
-        # Pevné šířky v pixerech – můžete si čísla upravit podle chuti
-        "ID": st.column_config.NumberColumn(
-            "ID", 
-            format="%d", 
-            width=35
-        ),
-        "Loko": st.column_config.Column(
-            "Lokomotiva", 
-            width=70
-        ),
-        "Datum": st.column_config.DateColumn(
-            "Datum", 
-            format="DD.MM.YYYY", 
-            width=80
-        ),
-        "Kategorie": st.column_config.SelectboxColumn(
-            "Kategorie", 
-            options=KATEGORIE_LIST, 
-            width=140
-        ),
-        "Popis závady": st.column_config.Column(
-            "Popis závady", 
-            width=330
-        ),
-        "Poznámka": st.column_config.Column(
-            "Poznámka", 
-            width=200
-        ),
-        "Fotka": st.column_config.LinkColumn(
-            "Fotka", 
-            width=100
-        ),
-    },
-    key="editor_zavad",
-)
-
-    # 2. Tlačítko pro uložení (stále odsazené pod with tab_prehled:)
+    # 3. Tlačítko pro uložení změn z tabulky
     if st.button(
         "💾 Uložit změny v tabulce",
         type="primary",
@@ -512,7 +485,6 @@ with tab_prehled:
                 df.loc[i, "Lokomotiva"] = formatuj_lokomotivu(row["Lokomotiva"])
                 df.loc[i, "Kategorie"] = row["Kategorie"]
 
-                # Ukládáme jako datetime objekt
                 if pd.notna(row["Datum"]):
                     df.loc[i, "Datum"] = pd.to_datetime(row["Datum"], dayfirst=True)
                 else:
@@ -542,7 +514,6 @@ with tab_prehled:
             st.rerun()
         else:
             st.error(f"Chyba při ukládání: {err}")
-
 # TAB 2: Nová závada s podporou Gemini, ImgBB a videí na GitHubu
 with tab_novy:
     st.title("➕ Zapsat novou závadu")
