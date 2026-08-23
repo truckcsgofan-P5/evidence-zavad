@@ -673,7 +673,7 @@ with tab_edit:
             idx = df[df["ID"] == vybrane_id].index[0]
             df.at[idx, "Lokomotiva"] = formatuj_lokomotivu(loko_edit)
             df.at[idx, "Kategorie"] = kategorie_edit
-            df.at[idx, "Datum"] = pd.to_datetime(datum_edit).strftime("%Y-%m-%d")
+            df.at[idx, "Datum"] = pd.to_datetime(datum_edit)
             df.at[idx, "Popis závady"] = popis_edit.strip()
             df.at[idx, "Poznámka"] = poznamka_edit.strip()
             df.at[idx, "Fotka"] = cilova_fotka_url.strip()
