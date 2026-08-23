@@ -428,12 +428,12 @@ with tab_prehled:
     hide_index=True,
     column_order=[
         "ID",
-        "Lokomotiva",
-        "Kategorie",
         "Datum",
+        "Lokomotiva",
         "Popis závady",
         "Poznámka",
         "Fotka",
+        "Kategorie",
     ],
     column_config={
         # Pevné šířky v pixerech – můžete si čísla upravit podle chuti
@@ -458,7 +458,7 @@ with tab_prehled:
         ),
         "Popis závady": st.column_config.Column(
             "Popis závady", 
-            width=300
+            width=330
         ),
         "Poznámka": st.column_config.Column(
             "Poznámka", 
