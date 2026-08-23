@@ -705,7 +705,7 @@ with tab_pdf:
     st.title("📄 Technická dokumentace a PDF manuály")
     st.caption("Ukládání a prohlížení PDF dokumentů přímo na GitHubu.")
 
-    RADY_LOKOMOTIV = ["844", "814", "842", "Ostatní"]
+    RADY_LOKOMOTIV = ["844", "842", "814", "954", "Ostatní"]
 
     # Načtení již nastavených konfiguračních údajů ze Streamlit Secrets
     try:
