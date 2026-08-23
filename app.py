@@ -13,6 +13,7 @@ import pandas as pd
 import streamlit as st
 from github import Github, GithubException
 from streamlit_pdf_viewer import pdf_viewer
+from streamlit_cookies_controller import CookieController
 
 st.set_page_config(
     page_title="Evidence závad lokomotiv", layout="wide", page_icon="🚆"
