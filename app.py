@@ -566,11 +566,9 @@ with tab_prehled:
 
     # 3. Tlačítko pro uložení změn se zobrazí jen Adminům a Editorům
     if je_editor:
-        if st.button(
-            "💾 Uložit změny v tabulce",
-            type="primary",
-            key="btn_ulozit_zmeny_tabulka",
-        ):
+        if st.button("💾 Uložit změny v tabulce", type="primary", key="btn_ulozit_zmeny_tabulka"):
+            aktualni_uzivatel = st.session_state.get("uzivatel_jmeno", "Neznámý")
+
             for idx, row in edited_df.iterrows():
                 main_idx = df[df["ID"] == row["ID"]].index
                 if not main_idx.empty:
@@ -583,23 +581,15 @@ with tab_prehled:
                     else:
                         df.loc[i, "Datum"] = pd.NaT
 
-                    df.loc[i, "Popis závady"] = (
-                        str(row["Popis závady"]).strip()
-                        if pd.notna(row["Popis závady"])
-                        else ""
-                    )
-                    df.loc[i, "Poznámka"] = (
-                        str(row["Poznámka"]).strip()
-                        if pd.notna(row["Poznámka"])
-                        else ""
-                    )
-                    df.loc[i, "Fotka"] = (
-                        str(row["Fotka"]).strip()
-                        if pd.notna(row.get("Fotka"))
-                        else ""
-                    )
+                    df.loc[i, "Popis závady"] = str(row["Popis závady"]).strip() if pd.notna(row["Popis závady"]) else ""
+                    df.loc[i, "Poznámka"] = str(row["Poznámka"]).strip() if pd.notna(row["Poznámka"]) else ""
+                    df.loc[i, "Fotka"] = str(row["Fotka"]).strip() if pd.notna(row.get("Fotka")) else ""
 
-            ok, err = ulozit_databazi(df, "Hromadná úprava z tabulky")
+                    # Uložení jména editora
+                    df.loc[i, "Upravil"] = aktualni_uzivatel
+
+            ok, err = ulozit_databazi(df, f"Hromadná úprava z tabulky ({aktualni_uzivatel})")
+            # ... zbytek kódu ...
             if ok:
                 st.session_state["msg_tab1"] = (
                     "✅ Všechny změny z tabulky byly úspěšně uloženy!"
