@@ -397,7 +397,7 @@ with tab_prehled:
     with col_f3:
         vyhledavani = st.text_input("Hledat v popisu nebo poznámce:")
 
-   filtr_df = df.copy()
+ filtr_df = df.copy()
     if vybrane_loko:
         filtr_df = filtr_df[
             filtr_df["Lokomotiva"].astype(str).isin(vybrane_loko)
