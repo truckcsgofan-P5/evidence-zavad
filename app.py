@@ -323,12 +323,13 @@ def ulozit_databazi(df_to_save, commit_msg):
 @st.cache_data(ttl=5)
 def load_data():
     if "GITHUB_TOKEN" in st.secrets:
-        g = github.Github(st.secrets["GITHUB_TOKEN"])
+        g = Github(st.secrets["GITHUB_TOKEN"])
         repo = g.get_repo(st.secrets["REPO_NAME"])
         file_content = repo.get_contents(FILE_PATH)
         df = pd.read_excel(io.BytesIO(file_content.decoded_content))
     else:
         df = pd.read_excel(FILE_PATH)
+    return df
 
     if "Datum" in df.columns:
         df["Datum"] = pd.to_datetime(
