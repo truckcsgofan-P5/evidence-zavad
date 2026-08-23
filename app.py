@@ -208,36 +208,51 @@ def prihlaseni_uzivatele():
     saved_user = controller.get(COOKIE_NAME)
     povoleni_uzivatele = st.secrets.get("users", {})
 
-    # Podpora pro starší zápis (pouze textové heslo) i nový zápis se slovníkem
     def over_uzivatele(jmeno, zapsane_heslo):
         if jmeno not in povoleni_uzivatele:
             return False, None
+
         zaznam = povoleni_uzivatele[jmeno]
-        # Pokud je v secrets uložen slovník s rolí
-        if isinstance(zaznam, dict):
-            if hmac.compare_digest(str(zaznam.get("password", "")), zapsane_heslo):
-                return True, zaznam.get("role", "viewer")
-        # Pokud je v secrets uloženo jen čisté heslo (zpětná kompatibilita)
+
+        # 1. Nový formát: pepa = { password = "123", role = "admin" }
+        # Ověřujeme přítomnost klíče/atributu password
+        if hasattr(zaznam, "password") or (isinstance(zaznam, dict) and "password" in zaznam):
+            ulozene_heslo = str(zaznam.get("password") if isinstance(zaznam, dict) else zaznam.password)
+            role = str(zaznam.get("role", "viewer") if isinstance(zaznam, dict) else getattr(zaznam, "role", "viewer"))
+
+            if hmac.compare_digest(ulozene_heslo, zapsane_heslo):
+                return True, role
+
+        # 2. Starý formát: pepa = "123"
         else:
-            if hmac.compare_digest(str(zaznam), zapsane_heslo):
-                return True, "admin" # výchozí role pro staré záznamy
+            ulozene_heslo = str(zaznam)
+            if hmac.compare_digest(ulozene_heslo, zapsane_heslo):
+                return True, "admin"
+
         return False, None
 
+    # Automatické přihlášení z Cookie
     if saved_user and saved_user in povoleni_uzivatele:
         zaznam = povoleni_uzivatele[saved_user]
-        role = zaznam.get("role", "viewer") if isinstance(zaznam, dict) else "admin"
+        if hasattr(zaznam, "role") or (isinstance(zaznam, dict) and "role" in zaznam):
+            role = str(zaznam.get("role") if isinstance(zaznam, dict) else zaznam.role)
+        else:
+            role = "admin"
+
         st.session_state["prihlasen"] = True
         st.session_state["uzivatel_jmeno"] = saved_user
         st.session_state["uzivatel_role"] = role
         return True
 
+    # Formulář pro přihlášení
     st.title("🔒 Přihlášení do aplikace")
     st.info("Pro přístup k evidenci závad se prosím přihlaste.")
 
     with st.form("login_form"):
-        uzivatel = st.text_input("Uživatelské jméno:")
-        heslo = st.text_input("Heslo:", type="password")
+        uzivatel = st.text_input("Uživatelské jméno:", placeholder="Zadejte uživatelské jméno")
+        heslo = st.text_input("Heslo:", type="password", placeholder="Zadejte heslo")
         zapamatovat = st.checkbox("Zapamatovat si přihlášení (na 30 dní)")
+
         submit_login = st.form_submit_button("Přihlásit se")
 
         if submit_login:
@@ -249,10 +264,16 @@ def prihlaseni_uzivatele():
 
                 if zapamatovat:
                     datum_expirace = datetime.now() + timedelta(days=30)
-                    controller.set(COOKIE_NAME, uzivatel, expires=datum_expirace, same_site="lax")
+                    controller.set(
+                        COOKIE_NAME,
+                        uzivatel,
+                        expires=datum_expirace,
+                        same_site="lax",
+                    )
                 st.rerun()
             else:
                 st.error("❌ Nesprávné uživatelské jméno nebo heslo.")
+
     return False
 
 
