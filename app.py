@@ -429,7 +429,7 @@ with tab_prehled:
     column_order=[
         "ID",
         "Datum",
-        "Lokomotiva",
+        "Loko",
         "Popis závady",
         "Poznámka",
         "Fotka",
@@ -442,7 +442,7 @@ with tab_prehled:
             format="%d", 
             width=35
         ),
-        "Lokomotiva": st.column_config.Column(
+        "Loko": st.column_config.Column(
             "Lokomotiva", 
             width=70
         ),
