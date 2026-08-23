@@ -440,11 +440,11 @@ with tab_prehled:
         "ID": st.column_config.NumberColumn(
             "ID", 
             format="%d", 
-            width=70
+            width=30
         ),
         "Lokomotiva": st.column_config.Column(
             "Lokomotiva", 
-            width=110
+            width=60
         ),
         "Datum": st.column_config.DateColumn(
             "Datum", 
