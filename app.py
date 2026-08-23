@@ -318,7 +318,7 @@ def load_data():
 df = load_data()
 
 # --- ZÁLOŽKY APLIKACE ---
-tab_prehled, tab_novy, tab_edit, tab_smazat, tab_pdf, tab_ai = st.tabs(
+tab_prehled, tab_novy, tab_edit, tab_smazat, tab_pdf, tab_foto, tab_ai = st.tabs(
     [
         "📋 Přehled a úprava",
         "➕ Přidat závadu",
