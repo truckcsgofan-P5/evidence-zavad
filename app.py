@@ -306,8 +306,15 @@ with col_btn:
     if st.button("🚪 Odhlásit", key="logout_top", use_container_width=True):
         st.session_state["prihlasen"] = False
         st.session_state["uzivatel_jmeno"] = None
-        # Smazání uložené cookie při odhlášení
-        controller.remove(COOKIE_NAME)
+        st.session_state["uzivatel_role"] = None
+        
+        # Bezpečné smazání uložené cookie při odhlášení
+        try:
+            if controller.get(COOKIE_NAME):
+                controller.remove(COOKIE_NAME)
+        except Exception:
+            pass
+            
         st.rerun()
 
 st.divider()
