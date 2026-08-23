@@ -325,7 +325,7 @@ tab_prehled, tab_novy, tab_edit, tab_smazat, tab_pdf, tab_foto, tab_ai = st.tabs
         "✏️ Detailní úprava",
         "🗑️ Smazat závadu",
         "📄 PDF Dokumentace",
-        "🖼️ Fotodokumentace a schémata",
+        "🖼️ Fotodokumentace",
         "🤖 Gemini Asistent",
     ]
 )
@@ -833,7 +833,7 @@ with tab_pdf:
         )
 # --- TAB: Fotodokumentace ---
 with tab_foto:
-    st.title("🖼️ Fotodokumentace a schémata")
+    st.title("🖼️ Fotodokumentace")
     st.caption("Ukládání a správa fotografií v podsložkách podle řad na GitHubu.")
 
     RADY_LOKOMOTIV = ["844", "814", "754", "Ostatní"]
