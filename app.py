@@ -440,7 +440,7 @@ with tab_prehled:
         "ID": st.column_config.NumberColumn(
             "ID", 
             format="%d", 
-            width=30
+            width=35
         ),
         "Lokomotiva": st.column_config.Column(
             "Lokomotiva", 
@@ -449,7 +449,7 @@ with tab_prehled:
         "Datum": st.column_config.DateColumn(
             "Datum", 
             format="DD.MM.YYYY", 
-            width=110
+            width=70
         ),
         "Kategorie": st.column_config.SelectboxColumn(
             "Kategorie", 
