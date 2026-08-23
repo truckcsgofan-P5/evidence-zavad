@@ -283,11 +283,20 @@ if not prihlaseni_uzivatele():
 # --- COMPACT LIŠTA S UŽIVATELEM A INFORMACEMI ---
 datum_dnes, svatek_dnes, pocasi_valmez = ziskej_info_hlavicka()
 
+# Načtení role a přiřazení přehledné ikony
+role_user = st.session_state.get("uzivatel_role", "viewer").lower()
+ikony_roli = {
+    "admin": "🔑 Admin",
+    "editor": "✏️ Editor",
+    "viewer": "👁️ Pouze čtení"
+}
+zobrazena_role = ikony_roli.get(role_user, role_user.capitalize())
+
 col_info, col_btn = st.columns([5, 1], vertical_alignment="bottom")
 
 with col_info:
     st.caption(
-        f"👤 Přihlášen: **{st.session_state.get('uzivatel_jmeno', 'Uživatel')}**  |  "
+        f"👤 Přihlášen: **{st.session_state.get('uzivatel_jmeno', 'Uživatel')}** ({zobrazena_role})  |  "
         f"📅 {datum_dnes}  |  "
         f"🎉 Svátek: {svatek_dnes}  |  "
         f"🌤️ Počasí (Val. Meziříčí): {pocasi_valmez}"
