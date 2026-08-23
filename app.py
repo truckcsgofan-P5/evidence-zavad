@@ -404,10 +404,10 @@ with tab_prehled:
         filtr_df = filtr_df[maska]
 
     # Převeďte sloupec Datum na datetime, aby byl kompatibilní s DateColumn
-if "Datum" in filtr_df.columns:
+   if "Datum" in filtr_df.columns:
     filtr_df["Datum"] = pd.to_datetime(filtr_df["Datum"], errors="coerce")
 
-edited_df = st.data_editor(
+    edited_df = st.data_editor(
     filtr_df,
     use_container_width=True,
     height=500,
