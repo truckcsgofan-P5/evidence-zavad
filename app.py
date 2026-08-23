@@ -940,9 +940,9 @@ with tab_foto:
 
     st.divider()
 
-    # ---------------------------------------------------------
-    # 2. PROHLÍŽEČ FOTOGRAFIÍ A PODSLOŽEK
-    # ---------------------------------------------------------
+   # ---------------------------------------------------------
+   # 2. PROHLÍŽEČ A MAZÁNÍ FOTOGRAFIÍ
+   # ---------------------------------------------------------
     st.subheader("🖼️ Prohlížet fotodokumentaci")
 
     col_view1, col_view2 = st.columns([1, 1])
@@ -958,7 +958,9 @@ with tab_foto:
 
     try:
         items_view = repo.get_contents(base_path_view)
-        podslozky_view = [item.name for item in items_view if item.type == "dir"]
+        podslozky_view = [
+            item.name for item in items_view if item.type == "dir"
+        ]
     except GithubException:
         podslozky_view = []
 
@@ -1012,10 +1014,12 @@ with tab_foto:
                             use_container_width=True,
                         )
 
-                        c1, c2 = st.columns(2)
+                        c1, c2, c3 = st.columns([1, 1, 1])
                         with c1:
                             st.link_button(
-                                "🔗 Otevřít na plnou plochu", url=view_url_img
+                                "🔗 Otevřít",
+                                url=view_url_img,
+                                use_container_width=True,
                             )
                         with c2:
                             st.download_button(
@@ -1024,7 +1028,31 @@ with tab_foto:
                                 file_name=img_obj.name,
                                 mime="image/jpeg",
                                 key=f"dl_{img_obj.sha}",
+                                use_container_width=True,
                             )
+                        with c3:
+                            # Tlačítko pro smazání fotografíe
+                            if st.button(
+                                "🗑️ Smazat",
+                                key=f"del_{img_obj.sha}",
+                                type="secondary",
+                                use_container_width=True,
+                            ):
+                                try:
+                                    repo.delete_file(
+                                        path=img_obj.path,
+                                        message=f"Smazána fotka {img_obj.name} ze složky {vybrana_sub_view}",
+                                        sha=img_obj.sha,
+                                    )
+                                    st.success(
+                                        f"Fotografie '{img_obj.name}' byla smazána."
+                                    )
+                                    st.rerun()
+                                except Exception as del_err:
+                                    st.error(
+                                        f"Chyba při mazání souboru: {del_err}"
+                                    )
+
                         st.write("---")
         else:
             st.info(
