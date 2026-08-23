@@ -858,6 +858,7 @@ if tab_edit:
                 df.at[idx, "Popis závady"] = popis_edit.strip()
                 df.at[idx, "Poznámka"] = poznamka_edit.strip()
                 df.at[idx, "Fotka"] = cilova_fotka_url.strip()
+                df.at[idx, "Upravil"] = st.session_state.get("uzivatel_jmeno", "Neznámý")
     
                 ok, err = ulozit_databazi(df, f"Úprava závady ID {vybrane_id}")
                 if ok:
