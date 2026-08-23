@@ -444,7 +444,7 @@ with tab_prehled:
             ),
             "Lokomotiva": st.column_config.Column(
                 "Lokomotiva", 
-                width=90
+                width=70
             ),
             "Datum": st.column_config.DateColumn(
                 "Datum", 
