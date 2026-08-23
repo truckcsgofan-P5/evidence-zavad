@@ -895,10 +895,12 @@ with tab_pdf:
                             "🔗 Otevřít PDF v novém okně", url=cdn_url
                         )
                     else:
-                        # MS Office Viewer pro Word dokumenty (.doc/.docx)
-                        ms_viewer_url = f"https://view.officeapps.live.com/op/view.aspx?src={cdn_url}"
+                        # Google Docs Viewer pro Word dokumenty (.doc/.docx)
+                        google_viewer_url = (
+                            f"https://docs.google.com/viewer?url={cdn_url}"
+                        )
                         st.link_button(
-                            "🔗 Otevřít Word v novém okně", url=ms_viewer_url
+                            "🔗 Otevřít Word v novém okně", url=google_viewer_url
                         )
 
                 with col_btn2:
