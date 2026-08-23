@@ -325,6 +325,7 @@ tab_prehled, tab_novy, tab_edit, tab_smazat, tab_pdf, tab_ai = st.tabs(
         "✏️ Detailní úprava",
         "🗑️ Smazat závadu",
         "📄 PDF Dokumentace",
+        "🖼️ Fotodokumentace a schémata",
         "🤖 Gemini Asistent",
     ]
 )
@@ -830,3 +831,202 @@ with tab_pdf:
         st.info(
             f"Ve složce **{target_folder}** na GitHubu zatím nejsou žádná PDF."
         )
+# --- TAB: Fotodokumentace ---
+with tab_foto:
+    st.title("🖼️ Fotodokumentace a schémata")
+    st.caption("Ukládání a správa fotografií v podsložkách podle řad na GitHubu.")
+
+    RADY_LOKOMOTIV = ["844", "814", "754", "Ostatní"]
+
+    # Načtení konfiguračních údajů ze Streamlit Secrets
+    try:
+        github_token = st.secrets["GITHUB_TOKEN"]
+        repo_name = st.secrets["GITHUB_REPO"]
+        g = Github(github_token)
+        repo = g.get_repo(repo_name)
+    except Exception as e:
+        st.error(
+            "⚠️ Nepodařilo se načíst GITHUB_TOKEN nebo GITHUB_REPO ze Secrets."
+        )
+        st.stop()
+
+    # ---------------------------------------------------------
+    # 1. NAHRÁVÁNÍ FOTOGRAFIÍ A SPRÁVA PODSLOŽEK
+    # ---------------------------------------------------------
+    st.subheader("➕ Nahrát novou fotografii")
+
+    col_rada, col_sub = st.columns([1, 1])
+
+    with col_rada:
+        zvolena_rada_foto = st.selectbox(
+            "Vyberte řadu lokomotivy:", RADY_LOKOMOTIV, key="upload_rada_foto"
+        )
+
+    # Načtení existujících podsložek z GitHubu pro danou řadu
+    base_path_upload = f"docs_foto/{zvolena_rada_foto}"
+    existujici_podslozky = []
+
+    try:
+        items = repo.get_contents(base_path_upload)
+        existujici_podslozky = [item.name for item in items if item.type == "dir"]
+    except GithubException:
+        existujici_podslozky = []
+
+    moznosti_podslozek = ["-- Vytvořit novou podsložku --"] + existujici_podslozky
+
+    with col_sub:
+        vybrana_podslozka = st.selectbox(
+            "Vyberte podsložku:", moznosti_podslozek, key="upload_sub_foto"
+        )
+
+    # Pokud uživatel zvolí vytvoření nové podsložky
+    nazev_podslozky = ""
+    if vybrana_podslozka == "-- Vytvořit novou podsložku --":
+        nazev_podslozky = st.text_input(
+            "Název nové podsložky (např. 844-001 nebo Prevodovka):",
+            key="new_sub_input",
+        ).strip()
+    else:
+        nazev_podslozky = vybrana_podslozka
+
+    uploaded_img = st.file_uploader(
+        "Vyberte fotografii:",
+        type=["jpg", "jpeg", "png", "webp"],
+        key="github_img_uploader",
+    )
+
+    if uploaded_img is not None:
+        if not nazev_podslozky:
+            st.warning("⚠️ Prosím zadejte nebo vyberte podsložku!")
+        else:
+            # Očištění názvu podsložky od nepovolených znaků
+            safe_sub = (
+                nazev_podslozky.replace(" ", "_")
+                .replace("/", "_")
+                .replace("\\", "_")
+            )
+            file_path_foto = (
+                f"docs_foto/{zvolena_rada_foto}/{safe_sub}/{uploaded_img.name}"
+            )
+            file_bytes_foto = uploaded_img.getvalue()
+
+            if st.button("🚀 Uložit fotku na GitHub", key="btn_save_foto"):
+                with st.spinner("Ukládám fotografii do GitHub repozitáře..."):
+                    try:
+                        try:
+                            contents = repo.get_contents(file_path_foto)
+                            repo.update_file(
+                                path=file_path_foto,
+                                message=f"Aktualizace fotky {uploaded_img.name} v {safe_sub}",
+                                content=file_bytes_foto,
+                                sha=contents.sha,
+                            )
+                            st.success(
+                                f"✅ Fotografie '{uploaded_img.name}' byla aktualizována!"
+                            )
+                        except GithubException:
+                            repo.create_file(
+                                path=file_path_foto,
+                                message=f"Přidána fotka {uploaded_img.name} do {safe_sub}",
+                                content=file_bytes_foto,
+                            )
+                            st.success(
+                                f"✅ Fotografie '{uploaded_img.name}' byla úspěšně uložena do složky **{safe_sub}**!"
+                            )
+
+                        st.rerun()
+                    except Exception as ex:
+                        st.error(f"Při ukládání došlo k chybě: {ex}")
+
+    st.divider()
+
+    # ---------------------------------------------------------
+    # 2. PROHLÍŽEČ FOTOGRAFIÍ A PODSLOŽEK
+    # ---------------------------------------------------------
+    st.subheader("🖼️ Prohlížet fotodokumentaci")
+
+    col_view1, col_view2 = st.columns([1, 1])
+
+    with col_view1:
+        vybrana_rada_view_foto = st.selectbox(
+            "Zobrazit řadu:", RADY_LOKOMOTIV, key="view_rada_foto"
+        )
+
+    # Načtení podsložek pro prohlížení
+    base_path_view = f"docs_foto/{vybrana_rada_view_foto}"
+    podslozky_view = []
+
+    try:
+        items_view = repo.get_contents(base_path_view)
+        podslozky_view = [item.name for item in items_view if item.type == "dir"]
+    except GithubException:
+        podslozky_view = []
+
+    with col_view2:
+        if podslozky_view:
+            vybrana_sub_view = st.selectbox(
+                "Vyberte podsložku ke zobrazení:",
+                podslozky_view,
+                key="view_sub_foto",
+            )
+        else:
+            vybrana_sub_view = None
+            st.info("Pro tuto řadu zatím neexistují žádné podsložky.")
+
+    if vybrana_sub_view:
+        target_foto_folder = (
+            f"docs_foto/{vybrana_rada_view_foto}/{vybrana_sub_view}"
+        )
+
+        try:
+            folder_imgs = repo.get_contents(target_foto_folder)
+            img_extensions = (".jpg", ".jpeg", ".png", ".webp")
+            image_files = [
+                f
+                for f in folder_imgs
+                if f.name.lower().endswith(img_extensions)
+            ]
+        except GithubException:
+            image_files = []
+
+        if image_files:
+            st.write(
+                f"Nalezeno **{len(image_files)}** fotografií ve složce **{vybrana_sub_view}**:"
+            )
+
+            # Zobrazení fotografií v mřížce (2 sloupce vedle sebe)
+            cols = st.columns(2)
+            headers = {"Authorization": f"token {github_token}"}
+
+            for idx, img_obj in enumerate(image_files):
+                col = cols[idx % 2]
+
+                res = requests.get(img_obj.download_url, headers=headers)
+                if res.status_code == 200:
+                    view_url_img = f"https://cdn.jsdelivr.net/gh/{repo_name}@main/{img_obj.path}"
+
+                    with col:
+                        st.image(
+                            res.content,
+                            caption=img_obj.name,
+                            use_container_width=True,
+                        )
+
+                        c1, c2 = st.columns(2)
+                        with c1:
+                            st.link_button(
+                                "🔗 Otevřít na plnou plochu", url=view_url_img
+                            )
+                        with c2:
+                            st.download_button(
+                                label="💾 Stáhnout",
+                                data=res.content,
+                                file_name=img_obj.name,
+                                mime="image/jpeg",
+                                key=f"dl_{img_obj.sha}",
+                            )
+                        st.write("---")
+        else:
+            st.info(
+                f"Ve složce **{vybrana_sub_view}** zatím nejsou žádné obrázky."
+            )
