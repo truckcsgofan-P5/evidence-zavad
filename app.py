@@ -183,11 +183,29 @@ def dotaz_na_gemini(dotaz, df):
         return f"Chyba při zpracování dotazu: {e}"
 
 
+# --- INICIALIZACE COOKIES PRO ZAPAMATOVÁNÍ ---
+controller = CookieController()
+
+# Název cookie pro uložení přihlášeného uživatele
+COOKIE_NAME = "evidence_zavad_user"
+
+
 # --- AUTENTIZACE ---
 def prihlaseni_uzivatele():
+    # 1. Kontrola, zda již máme uloženo v session_state
     if st.session_state.get("prihlasen", False):
         return True
 
+    # 2. Kontrola, zda existuje platná cookie v prohlížeči
+    saved_user = controller.get(COOKIE_NAME)
+    povoleni_uzivatele = st.secrets.get("users", {})
+
+    if saved_user and saved_user in povoleni_uzivatele:
+        st.session_state["prihlasen"] = True
+        st.session_state["uzivatel_jmeno"] = saved_user
+        return True
+
+    # 3. Zobrazení přihlašovacího formuláře
     st.title("🔒 Přihlášení do aplikace")
     st.info("Pro přístup k evidenci závad se prosím přihlaste.")
 
@@ -198,15 +216,29 @@ def prihlaseni_uzivatele():
         heslo = st.text_input(
             "Heslo:", type="password", placeholder="Zadejte heslo"
         )
+        zapamatovat = st.checkbox("Zapamatovat si přihlášení (na 30 dní)")
+
         submit_login = st.form_submit_button("Přihlásit se")
 
         if submit_login:
-            povoleni_uzivatele = st.secrets.get("users", {})
             if uzivatel in povoleni_uzivatele:
                 ulozene_heslo = str(povoleni_uzivatele[uzivatel])
                 if hmac.compare_digest(ulozene_heslo, heslo):
                     st.session_state["prihlasen"] = True
                     st.session_state["uzivatel_jmeno"] = uzivatel
+
+                    # Pokud zaškrtl zapamatování, uložíme uživatele do cookie na 30 dní
+                    if zapamatovat:
+                        datum_expirace = datetime.datetime.now() + datetime.timedelta(
+                            days=30
+                        )
+                        controller.set(
+                            COOKIE_NAME,
+                            uzivatel,
+                            expires=datum_expirace,
+                            same_site="lax",
+                        )
+
                     st.rerun()
 
             st.error("❌ Nesprávné uživatelské jméno nebo heslo.")
@@ -232,6 +264,9 @@ with col_info:
 with col_btn:
     if st.button("🚪 Odhlásit", key="logout_top", use_container_width=True):
         st.session_state["prihlasen"] = False
+        st.session_state["uzivatel_jmeno"] = None
+        # Smazání uložené cookie při odhlášení
+        controller.remove(COOKIE_NAME)
         st.rerun()
 
 st.divider()
