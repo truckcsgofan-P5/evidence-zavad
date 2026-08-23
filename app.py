@@ -706,7 +706,7 @@ with tab_pdf:
     st.title("📄 Technická dokumentace a PDF manuály")
     st.caption("Ukládání a prohlížení PDF dokumentů přímo na GitHubu.")
 
-    RADY_LOKOMOTIV = ["844", "814", "754", "Ostatní"]
+    RADY_LOKOMOTIV = ["844", "842", "814", "954", "Ostatní"]
 
     # Načtení konfiguračních údajů ze Streamlit Secrets
     try:
@@ -798,14 +798,17 @@ with tab_pdf:
         if response.status_code == 200:
             file_data = response.content
 
+            # Odkaz na CDN, který otevírá PDF přímo v prohlížeči bez automatického stahování
+            view_url = f"https://cdn.jsdelivr.net/gh/{repo_name}@main/{selected_file_obj.path}"
+
             # TLAČÍTKA AKCÍ
             col_btn1, col_btn2, _ = st.columns([1, 1, 2])
 
             with col_btn1:
-                # Otevře PDF v nové záložce prohlížeče
+                # Otevře PDF přímo v prohlížeči na nové záložce
                 st.link_button(
                     label="🔗 Otevřít v novém okně",
-                    url=selected_file_obj.download_url,
+                    url=view_url,
                 )
 
             with col_btn2:
