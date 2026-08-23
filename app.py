@@ -48,7 +48,7 @@ KATEGORIE_LIST = [
     "IS - Infosystém",
     "Dobíjení",
     "Spalovací motor / Pohon",
-    "Sdělovací a zabezpečovací technika",
+    "VZ - Radiostanice",
     "Klimatizace / Topení",
     "WC - systém",
     "Ostatní",
