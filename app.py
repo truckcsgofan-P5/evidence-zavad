@@ -344,8 +344,8 @@ def load_data():
         df["Datum"] = pd.to_datetime(
             df["Datum"], dayfirst=True, errors="coerce"
         )
-    if "Loko" in df.columns:
-        df["Loko"] = df["Loko"].apply(formatuj_lokomotivu)
+    if "Lokomotiva" in df.columns:
+        df["Lokomotiva"] = df["Lokomotiva"].apply(formatuj_lokomotivu)
 
     df["Kategorie"] = (
         df["Kategorie"].fillna("Neuvedeno")
@@ -429,7 +429,7 @@ with tab_prehled:
     column_order=[
         "ID",
         "Datum",
-        "Loko",
+        "Lokomotiva",
         "Popis závady",
         "Poznámka",
         "Fotka",
