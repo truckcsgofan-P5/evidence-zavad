@@ -495,13 +495,19 @@ with tab_prehled:
         )
         filtr_df = filtr_df.sort_values(by="Datum", ascending=False)
 
-    # 2. Jediné správné zobrazení tabulky (disabled=True uzamkne vše pro role viewer)
+    # Zajistíme, že sloupce Vytvořil a Upravil v datovém rámci existují
+    for col_autor in ["Vytvořil", "Upravil"]:
+        if col_autor not in filtr_df.columns:
+            filtr_df[col_autor] = ""
+
+    # 2. Jediné správné zobrazení tabulky
     edited_df = st.data_editor(
         filtr_df,
         use_container_width=False,
         height=500,
         num_rows="fixed",
-        disabled=True if not je_editor else ["ID"],
+        # Sloupce ID, Vytvořil a Upravil jsou zamčené proti přepsání
+        disabled=True if not je_editor else ["ID", "Vytvořil", "Upravil"],
         hide_index=True,
         column_order=[
             "ID",
@@ -511,6 +517,8 @@ with tab_prehled:
             "Poznámka",
             "Fotka",
             "Kategorie",
+            "Vytvořil",
+            "Upravil",
         ],
         column_config={
             "ID": st.column_config.NumberColumn(
@@ -543,6 +551,14 @@ with tab_prehled:
             "Fotka": st.column_config.LinkColumn(
                 "Fotka", 
                 width=100
+            ),
+            "Vytvořil": st.column_config.Column(
+                "Vytvořil", 
+                width=90
+            ),
+            "Upravil": st.column_config.Column(
+                "Upravil", 
+                width=90
             ),
         },
         key="editor_zavad",
