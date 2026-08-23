@@ -587,8 +587,7 @@ with tab_novy:
                 st.session_state["msg_tab2"] = f"✅ Závada byla úspěšně uložena pod ID {nove_id}!"
                 st.rerun()
             else:
-                st.error(f"Chyba při ukládání: {err}")
-    st.dataframe(df)            
+                st.error(f"Chyba při ukládání: {err}")            
 
 # TAB 3: Detailní úprava
 with tab_edit:
@@ -685,8 +684,7 @@ with tab_edit:
                 st.session_state["msg_tab3"] = f"✅ Závada ID {vybrane_id} byla úspěšně aktualizována!"
                 st.rerun()
             else:
-                st.error(f"Chyba při ukládání: {err}")
-    st.dataframe(df)           
+                st.error(f"Chyba při ukládání: {err}")           
 
 # TAB 4: Smazat
 with tab_smazat:
@@ -741,7 +739,6 @@ with tab_smazat:
                     st.rerun()
                 else:
                     st.error(f"Chyba: {err}")
-    st.dataframe(df)
 
 # TAB 5: Gemini AI Chat nad databází
 with tab_ai:
