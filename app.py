@@ -15,6 +15,16 @@ from github import Github, GithubException
 from streamlit_cookies_controller import CookieController
 from streamlit_pdf_viewer import pdf_viewer
 
+# --- TOTO DEJTE ÚPLNĚ NA ZAČÁTEK SOUBORU (před vytváření tabů) ---
+try:
+    github_token = st.secrets["GITHUB_TOKEN"]
+    repo_name = st.secrets["GITHUB_REPO"]
+    g = Github(github_token)
+    repo = g.get_repo(repo_name)
+except Exception as e:
+    st.error("⚠️ Nepodařilo se načíst GITHUB_TOKEN nebo GITHUB_REPO ze Secrets.")
+    st.stop()
+
 st.set_page_config(
     page_title="Evidence závad lokomotiv", layout="wide", page_icon="🚆"
 )
