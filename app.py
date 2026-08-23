@@ -1003,8 +1003,8 @@ with tab_pdf:
             )
 # --- TAB: Fotodokumentace ---
 with tab_foto:
-    st.title("🖼️ Fotodokumentace")
-    st.caption("Ukládání a správa fotografií v podsložkách podle řad na GitHubu.")
+    st.title("🖼️ Fotodokumentace a videa")
+    st.caption("Ukládání a správa fotografií a krátkých videí v podsložkách podle řad na GitHubu.")
 
     RADY_LOKOMOTIV = ["844", "842", "814", "954", "Ostatní"]
 
@@ -1021,9 +1021,9 @@ with tab_foto:
         st.stop()
 
     # ---------------------------------------------------------
-    # 1. NAHRÁVÁNÍ FOTOGRAFIÍ A SPRÁVA PODSLOŽEK
+    # 1. NAHRÁVÁNÍ FOTOGRAFIÍ/VIDEÍ A SPRÁVA PODSLOŽEK
     # ---------------------------------------------------------
-    st.subheader("➕ Nahrát novou fotografii")
+    st.subheader("➕ Nahrát nový soubor (fotku/video)")
 
     col_rada, col_sub = st.columns([1, 1])
 
@@ -1059,13 +1059,14 @@ with tab_foto:
     else:
         nazev_podslozky = vybrana_podslozka
 
-    uploaded_img = st.file_uploader(
-        "Vyberte fotografii:",
-        type=["jpg", "jpeg", "png", "webp"],
+    # PŘIDÁNY VIDEO FORMÁTY
+    uploaded_file = st.file_uploader(
+        "Vyberte fotografii nebo krátké video (max 10s):",
+        type=["jpg", "jpeg", "png", "webp", "mp4", "mov", "avi"],
         key="github_img_uploader",
     )
 
-    if uploaded_img is not None:
+    if uploaded_file is not None:
         if not nazev_podslozky:
             st.warning("⚠️ Prosím zadejte nebo vyberte podsložku!")
         else:
@@ -1076,32 +1077,32 @@ with tab_foto:
                 .replace("\\", "_")
             )
             file_path_foto = (
-                f"docs_foto/{zvolena_rada_foto}/{safe_sub}/{uploaded_img.name}"
+                f"docs_foto/{zvolena_rada_foto}/{safe_sub}/{uploaded_file.name}"
             )
-            file_bytes_foto = uploaded_img.getvalue()
+            file_bytes_foto = uploaded_file.getvalue()
 
-            if st.button("🚀 Uložit fotku na GitHub", key="btn_save_foto"):
-                with st.spinner("Ukládám fotografii do GitHub repozitáře..."):
+            if st.button("🚀 Uložit soubor na GitHub", key="btn_save_foto"):
+                with st.spinner("Ukládám soubor do GitHub repozitáře (u videa to může chvilku trvat)..."):
                     try:
                         try:
                             contents = repo.get_contents(file_path_foto)
                             repo.update_file(
                                 path=file_path_foto,
-                                message=f"Aktualizace fotky {uploaded_img.name} v {safe_sub}",
+                                message=f"Aktualizace souboru {uploaded_file.name} v {safe_sub}",
                                 content=file_bytes_foto,
                                 sha=contents.sha,
                             )
                             st.success(
-                                f"✅ Fotografie '{uploaded_img.name}' byla aktualizována!"
+                                f"✅ Soubor '{uploaded_file.name}' byl aktualizován!"
                             )
                         except GithubException:
                             repo.create_file(
                                 path=file_path_foto,
-                                message=f"Přidána fotka {uploaded_img.name} do {safe_sub}",
+                                message=f"Přidán soubor {uploaded_file.name} do {safe_sub}",
                                 content=file_bytes_foto,
                             )
                             st.success(
-                                f"✅ Fotografie '{uploaded_img.name}' byla úspěšně uložena do složky **{safe_sub}**!"
+                                f"✅ Soubor '{uploaded_file.name}' byl úspěšně uložen do složky **{safe_sub}**!"
                             )
 
                         st.rerun()
@@ -1111,7 +1112,7 @@ with tab_foto:
     st.divider()
 
    # ---------------------------------------------------------
-   # 2. PROHLÍŽEČ A MAZÁNÍ FOTOGRAFIÍ
+   # 2. PROHLÍŽEČ A MAZÁNÍ FOTOGRAFIÍ/VIDEÍ
    # ---------------------------------------------------------
     st.subheader("🖼️ Prohlížet fotodokumentaci")
 
@@ -1152,70 +1153,80 @@ with tab_foto:
 
         try:
             folder_imgs = repo.get_contents(target_foto_folder)
-            img_extensions = (".jpg", ".jpeg", ".png", ".webp")
-            image_files = [
+            # ROZŠÍŘENO O VIDEO FORMÁTY
+            media_extensions = (".jpg", ".jpeg", ".png", ".webp", ".mp4", ".mov", ".avi")
+            media_files = [
                 f
                 for f in folder_imgs
-                if f.name.lower().endswith(img_extensions)
+                if f.name.lower().endswith(media_extensions)
             ]
         except GithubException:
-            image_files = []
+            media_files = []
 
-        if image_files:
+        if media_files:
             st.write(
-                f"Nalezeno **{len(image_files)}** fotografií ve složce **{vybrana_sub_view}**:"
+                f"Nalezeno **{len(media_files)}** souborů ve složce **{vybrana_sub_view}**:"
             )
 
-            # Zobrazení fotografií v mřížce (2 sloupce vedle sebe)
+            # Zobrazení ve mřížce (2 sloupce vedle sebe)
             cols = st.columns(2)
             headers = {"Authorization": f"token {github_token}"}
 
-            for idx, img_obj in enumerate(image_files):
+            for idx, file_obj in enumerate(media_files):
                 col = cols[idx % 2]
 
-                res = requests.get(img_obj.download_url, headers=headers)
+                res = requests.get(file_obj.download_url, headers=headers)
                 if res.status_code == 200:
-                    view_url_img = f"https://cdn.jsdelivr.net/gh/{repo_name}@main/{img_obj.path}"
+                    view_url_file = f"https://cdn.jsdelivr.net/gh/{repo_name}@main/{file_obj.path}"
 
                     with col:
-                        st.image(
-                            res.content,
-                            caption=img_obj.name,
-                            use_container_width=True,
-                        )
+                        # ROZHODNUTÍ, ZDA ZOBRAZIT FOTKU NEBO VIDEO
+                        is_video = file_obj.name.lower().endswith((".mp4", ".mov", ".avi"))
+                        
+                        if is_video:
+                            st.video(res.content)
+                            st.caption(file_obj.name) # Přidáme popisek pod video
+                        else:
+                            st.image(
+                                res.content,
+                                caption=file_obj.name,
+                                use_container_width=True,
+                            )
 
                         c1, c2, c3 = st.columns([1, 1, 1])
                         with c1:
                             st.link_button(
                                 "🔗 Otevřít",
-                                url=view_url_img,
+                                url=view_url_file,
                                 use_container_width=True,
                             )
                         with c2:
+                            # Správný typ souboru pro stahování
+                            mime_type = "video/mp4" if is_video else "image/jpeg"
                             st.download_button(
                                 label="💾 Stáhnout",
                                 data=res.content,
-                                file_name=img_obj.name,
-                                mime="image/jpeg",
-                                key=f"dl_{img_obj.sha}",
+                                file_name=file_obj.name,
+                                mime=mime_type,
+                                key=f"dl_{file_obj.sha}",
                                 use_container_width=True,
                             )
                         with c3:
-                            # Tlačítko pro smazání fotografíe
+                            # Tlačítko pro smazání
                             if st.button(
                                 "🗑️ Smazat",
-                                key=f"del_{img_obj.sha}",
+                                key=f"del_{file_obj.sha}",
                                 type="secondary",
                                 use_container_width=True,
                             ):
                                 try:
                                     repo.delete_file(
-                                        path=img_obj.path,
-                                        message=f"Smazána fotka {img_obj.name} ze složky {vybrana_sub_view}",
-                                        sha=img_obj.sha,
+                                        path=file_obj.path,
+                                        message=f"Smazán soubor {file_obj.name} ze složky {vybrana_sub_view}",
+                                        sha=file_obj.sha,
                                     )
                                     st.success(
-                                        f"Fotografie '{img_obj.name}' byla smazána."
+                                        f"Soubor '{file_obj.name}' byl smazán."
                                     )
                                     st.rerun()
                                 except Exception as del_err:
@@ -1223,8 +1234,8 @@ with tab_foto:
                                         f"Chyba při mazání souboru: {del_err}"
                                     )
 
-                        st.write("---")
+                    st.write("---")
         else:
             st.info(
-                f"Ve složce **{vybrana_sub_view}** zatím nejsou žádné obrázky."
+                f"Ve složce **{vybrana_sub_view}** zatím nejsou žádné fotky ani videa."
             )
