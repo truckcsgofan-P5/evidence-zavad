@@ -418,7 +418,7 @@ edited_df = st.data_editor(
     column_config={
         "Datum": st.column_config.DatetimeColumn(
             "Datum",
-            format="DD.MM.YYYY HH:mm",  # zobrazí datum i čas
+            format="DD.MM.YYYY",  # zobrazí datum i čas
         ),
         "ID": st.column_config.NumberColumn("ID", format="%d"),
         "Kategorie": st.column_config.SelectboxColumn(
@@ -451,7 +451,7 @@ if st.button(
             # Správný zápis data VČETNĚ ČASU
             if pd.notna(row["Datum"]):
                 dt_val = pd.to_datetime(row["Datum"], dayfirst=True)
-                df.loc[i, "Datum"] = dt_val.strftime("%d.%m.%Y %H:%M")
+                df.loc[i, "Datum"] = dt_val.strftime("%d.%m.%Y")
             else:
                 df.loc[i, "Datum"] = ""
 
