@@ -798,16 +798,28 @@ with tab_pdf:
         if response.status_code == 200:
             file_data = response.content
 
-            col_dl, _ = st.columns([1, 3])
-            with col_dl:
+            # TLAČÍTKA AKCÍ
+            col_btn1, col_btn2, _ = st.columns([1, 1, 2])
+
+            with col_btn1:
+                # Otevře PDF v nové záložce prohlížeče
+                st.link_button(
+                    label="🔗 Otevřít v novém okně",
+                    url=selected_file_obj.download_url,
+                )
+
+            with col_btn2:
+                # Stáhne kopii souboru do PC/mobilu
                 st.download_button(
-                    label=f"💾 Stáhnout kopii ({zvoleny_nazev})",
+                    label="💾 Stáhnout kopii",
                     data=file_data,
                     file_name=zvoleny_nazev,
                     mime="application/pdf",
                 )
 
-            # Prohlížení přes streamlit-pdf-viewer (Chrome neblokuje)
+            st.divider()
+
+            # NÁHLED UVNITŘ APLIKACE
             pdf_viewer(input=file_data, width=700, height=800)
         else:
             st.error("Dokument se nepodařilo načíst pro prohlížení.")
