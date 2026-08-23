@@ -702,10 +702,12 @@ with tab_ai:
         else:
             st.warning("Napište dotaz.")
 
-# --- TAB: PDF Dokumentace ---
+# --- TAB: Dokumentace (PDF + Word) ---
 with tab_pdf:
-    st.title("📄 Technická dokumentace a PDF manuály")
-    st.caption("Ukládání a prohlížení PDF dokumentů přímo na GitHubu.")
+    st.title("📄 Technická dokumentace (PDF a Word)")
+    st.caption(
+        "Ukládání a prohlížení PDF i Word dokumentů v podsložkách podle řad."
+    )
 
     RADY_LOKOMOTIV = ["844", "842", "814", "954", "Ostatní"]
 
@@ -721,116 +723,229 @@ with tab_pdf:
         )
         st.stop()
 
-    # 1. FORMULÁŘ PRO NAHRÁNÍ NOVÉHO DOKUMENTU
-    st.subheader("➕ Nahrát nový dokument na GitHub")
-    col1, col2 = st.columns([1, 2])
+    # ---------------------------------------------------------
+    # 1. NAHRÁVÁNÍ DOKUMENTŮ A SPRÁVA PODSLOŽEK
+    # ---------------------------------------------------------
+    st.subheader("➕ Nahrát nový dokument (PDF nebo Word)")
 
-    with col1:
-        zvolena_rada = st.selectbox("Vyberte řadu lokomotivy:", RADY_LOKOMOTIV)
+    col_rada, col_sub = st.columns([1, 1])
 
-    with col2:
-        uploaded_pdf = st.file_uploader(
-            "Vyberte PDF soubor:", type=["pdf"], key="github_pdf_uploader"
+    with col_rada:
+        zvolena_rada_pdf = st.selectbox(
+            "Vyberte řadu lokomotivy:", RADY_LOKOMOTIV, key="upload_rada_pdf"
         )
 
-    if uploaded_pdf is not None:
-        file_path = f"docs_pdf/{zvolena_rada}/{uploaded_pdf.name}"
-        file_bytes = uploaded_pdf.getvalue()
+    # Načtení existujících podsložek z GitHubu pro danou řadu
+    base_path_upload = f"docs_pdf/{zvolena_rada_pdf}"
+    existujici_podslozky = []
 
-        if st.button("🚀 Uložit na GitHub"):
-            with st.spinner("Ukládám soubor do GitHub repozitáře..."):
-                try:
+    try:
+        items = repo.get_contents(base_path_upload)
+        existujici_podslozky = [
+            item.name for item in items if item.type == "dir"
+        ]
+    except GithubException:
+        existujici_podslozky = []
+
+    moznosti_podslozek = [
+        "-- Vytvořit novou podsložku --"
+    ] + existujici_podslozky
+
+    with col_sub:
+        vybrana_podslozka = st.selectbox(
+            "Vyberte podsložku:", moznosti_podslozek, key="upload_sub_pdf"
+        )
+
+    # Pokud uživatel zvolí vytvoření nové podsložky
+    nazev_podslozky = ""
+    if vybrana_podslozka == "-- Vytvořit novou podsložku --":
+        nazev_podslozky = st.text_input(
+            "Název nové podsložky (např. Motor nebo Schémata):",
+            key="new_sub_input_pdf",
+        ).strip()
+    else:
+        nazev_podslozky = vybrana_podslozka
+
+    uploaded_doc = st.file_uploader(
+        "Vyberte PDF nebo Word soubor:",
+        type=["pdf", "doc", "docx"],
+        key="github_doc_uploader",
+    )
+
+    if uploaded_doc is not None:
+        if not nazev_podslozky:
+            st.warning("⚠️ Prosím zadejte nebo vyberte podsložku!")
+        else:
+            safe_sub = (
+                nazev_podslozky.replace(" ", "_")
+                .replace("/", "_")
+                .replace("\\", "_")
+            )
+            file_path_doc = (
+                f"docs_pdf/{zvolena_rada_pdf}/{safe_sub}/{uploaded_doc.name}"
+            )
+            file_bytes_doc = uploaded_doc.getvalue()
+
+            if st.button("🚀 Uložit dokument na GitHub", key="btn_save_doc"):
+                with st.spinner("Ukládám dokument do GitHub repozitáře..."):
                     try:
-                        contents = repo.get_contents(file_path)
-                        repo.update_file(
-                            path=file_path,
-                            message=f"Aktualizace dokumentu {uploaded_pdf.name} pro řadu {zvolena_rada}",
-                            content=file_bytes,
-                            sha=contents.sha,
-                        )
-                        st.success(
-                            f"✅ Soubor '{uploaded_pdf.name}' byl aktualizován na GitHubu!"
-                        )
-                    except GithubException:
-                        repo.create_file(
-                            path=file_path,
-                            message=f"Přidán dokument {uploaded_pdf.name} pro řadu {zvolena_rada}",
-                            content=file_bytes,
-                        )
-                        st.success(
-                            f"✅ Soubor '{uploaded_pdf.name}' byl úspěšně uložen na GitHub do složky {zvolena_rada}!"
-                        )
+                        try:
+                            contents = repo.get_contents(file_path_doc)
+                            repo.update_file(
+                                path=file_path_doc,
+                                message=f"Aktualizace dokumentu {uploaded_doc.name} v {safe_sub}",
+                                content=file_bytes_doc,
+                                sha=contents.sha,
+                            )
+                            st.success(
+                                f"✅ Dokument '{uploaded_doc.name}' byl aktualizován!"
+                            )
+                        except GithubException:
+                            repo.create_file(
+                                path=file_path_doc,
+                                message=f"Přidán dokument {uploaded_doc.name} do {safe_sub}",
+                                content=file_bytes_doc,
+                            )
+                            st.success(
+                                f"✅ Dokument '{uploaded_doc.name}' byl úspěšně uložen do složky **{safe_sub}**!"
+                            )
 
-                    st.rerun()
-                except Exception as ex:
-                    st.error(f"Při ukládání došlo k chybě: {ex}")
+                        st.rerun()
+                    except Exception as ex:
+                        st.error(f"Při ukládání došlo k chybě: {ex}")
 
     st.divider()
 
-    # 2. PROHLÍŽEČ ULOŽENÝCH DOKUMENTŮ
+    # ---------------------------------------------------------
+    # 2. PROHLÍŽEČ A MAZÁNÍ DOKUMENTŮ
+    # ---------------------------------------------------------
     st.subheader("📂 Prohlížet uložené dokumenty")
 
-    vybrana_rada_view = st.selectbox(
-        "Zobrazit dokumenty pro řadu:", RADY_LOKOMOTIV, key="view_select_github"
-    )
+    col_view1, col_view2 = st.columns([1, 1])
 
-    target_folder = f"docs_pdf/{vybrana_rada_view}"
+    with col_view1:
+        vybrana_rada_view_pdf = st.selectbox(
+            "Zobrazit řadu:", RADY_LOKOMOTIV, key="view_rada_pdf"
+        )
+
+    # Načtení podsložek pro prohlížení
+    base_path_view = f"docs_pdf/{vybrana_rada_view_pdf}"
+    podslozky_view = []
 
     try:
-        folder_contents = repo.get_contents(target_folder)
-        pdf_files = [
-            f for f in folder_contents if f.name.lower().endswith(".pdf")
+        items_view = repo.get_contents(base_path_view)
+        podslozky_view = [
+            item.name for item in items_view if item.type == "dir"
         ]
     except GithubException:
-        pdf_files = []
+        podslozky_view = []
 
-    if pdf_files:
-        soubor_dict = {f.name: f for f in pdf_files}
-        zvoleny_nazev = st.selectbox(
-            "Vyberte dokument k prohlížení:", list(soubor_dict.keys())
-        )
-
-        selected_file_obj = soubor_dict[zvoleny_nazev]
-
-        file_url = selected_file_obj.download_url
-        headers = {"Authorization": f"token {github_token}"}
-        response = requests.get(file_url, headers=headers)
-
-        if response.status_code == 200:
-            file_data = response.content
-
-            # Odkaz na CDN, který otevírá PDF přímo v prohlížeči bez automatického stahování
-            view_url = f"https://cdn.jsdelivr.net/gh/{repo_name}@main/{selected_file_obj.path}"
-
-            # TLAČÍTKA AKCÍ
-            col_btn1, col_btn2, _ = st.columns([1, 1, 2])
-
-            with col_btn1:
-                # Otevře PDF přímo v prohlížeči na nové záložce
-                st.link_button(
-                    label="🔗 Otevřít v novém okně",
-                    url=view_url,
-                )
-
-            with col_btn2:
-                # Stáhne kopii souboru do PC/mobilu
-                st.download_button(
-                    label="💾 Stáhnout kopii",
-                    data=file_data,
-                    file_name=zvoleny_nazev,
-                    mime="application/pdf",
-                )
-
-            st.divider()
-
-            # NÁHLED UVNITŘ APLIKACE
-            pdf_viewer(input=file_data, width=700, height=800)
+    with col_view2:
+        if podslozky_view:
+            vybrana_sub_view = st.selectbox(
+                "Vyberte podsložku ke zobrazení:",
+                podslozky_view,
+                key="view_sub_pdf",
+            )
         else:
-            st.error("Dokument se nepodařilo načíst pro prohlížení.")
-    else:
-        st.info(
-            f"Ve složce **{target_folder}** na GitHubu zatím nejsou žádná PDF."
+            vybrana_sub_view = None
+            st.info("Pro tuto řadu zatím neexistují žádné podsložky.")
+
+    if vybrana_sub_view:
+        target_doc_folder = (
+            f"docs_pdf/{vybrana_rada_view_pdf}/{vybrana_sub_view}"
         )
+
+        try:
+            folder_docs = repo.get_contents(target_doc_folder)
+            valid_extensions = (".pdf", ".doc", ".docx")
+            doc_files = [
+                f
+                for f in folder_docs
+                if f.name.lower().endswith(valid_extensions)
+            ]
+        except GithubException:
+            doc_files = []
+
+        if doc_files:
+            soubor_dict = {f.name: f for f in doc_files}
+            zvoleny_nazev = st.selectbox(
+                "Vyberte konkrétní dokument k zobrazení:",
+                list(soubor_dict.keys()),
+            )
+
+            selected_file_obj = soubor_dict[zvoleny_nazev]
+
+            # Načtení souboru z GitHubu
+            file_url = selected_file_obj.download_url
+            headers = {"Authorization": f"token {github_token}"}
+            response = requests.get(file_url, headers=headers)
+
+            if response.status_code == 200:
+                file_data = response.content
+                is_pdf = zvoleny_nazev.lower().endswith(".pdf")
+                cdn_url = f"https://cdn.jsdelivr.net/gh/{repo_name}@main/{selected_file_obj.path}"
+
+                # Ovládací tlačítka
+                col_btn1, col_btn2, col_btn3 = st.columns([1.5, 1, 1])
+
+                with col_btn1:
+                    if is_pdf:
+                        st.link_button(
+                            "🔗 Otevřít PDF v novém okně", url=cdn_url
+                        )
+                    else:
+                        # MS Office Viewer pro Word dokumenty (.doc/.docx)
+                        ms_viewer_url = f"https://view.officeapps.live.com/op/view.aspx?src={cdn_url}"
+                        st.link_button(
+                            "🔗 Otevřít Word v novém okně", url=ms_viewer_url
+                        )
+
+                with col_btn2:
+                    st.download_button(
+                        label="💾 Stáhnout",
+                        data=file_data,
+                        file_name=zvoleny_nazev,
+                        mime="application/pdf"
+                        if is_pdf
+                        else "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        key="dl_doc_btn",
+                    )
+
+                with col_btn3:
+                    if st.button(
+                        "🗑️ Smazat", key="del_doc_btn", type="secondary"
+                    ):
+                        try:
+                            repo.delete_file(
+                                path=selected_file_obj.path,
+                                message=f"Smazán dokument {zvoleny_nazev} ze složky {vybrana_sub_view}",
+                                sha=selected_file_obj.sha,
+                            )
+                            st.success(
+                                f"Dokument '{zvoleny_nazev}' byl smazán."
+                            )
+                            st.rerun()
+                        except Exception as del_err:
+                            st.error(f"Chyba při mazání: {del_err}")
+
+                st.divider()
+
+                # NÁHLED UVNITŘ APLIKACE
+                if is_pdf:
+                    pdf_viewer(input=file_data, width=700, height=800)
+                else:
+                    st.info(
+                        f"📄 **Soubor '{zvoleny_nazev}' je dokument Microsoft Word.**\n\n"
+                        "Z bezpečnostních důvodů nelze Word zobrazit přímo v malém náhledu. "
+                        "Použijte tlačítko **🔗 Otevřít Word v novém okně** výše pro plné zobrazení bez stahování, nebo tlačítko **💾 Stáhnout**."
+                    )
+            else:
+                st.error("Dokument se nepodařilo načíst z GitHubu.")
+        else:
+            st.info(
+                f"Ve složce **{vybrana_sub_view}** zatím nejsou žádné dokumenty."
+            )
 # --- TAB: Fotodokumentace ---
 with tab_foto:
     st.title("🖼️ Fotodokumentace")
