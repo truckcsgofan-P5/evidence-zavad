@@ -494,6 +494,16 @@ with tab_prehled:
             filtr_df["Datum"], dayfirst=True, errors="coerce"
         )
         filtr_df = filtr_df.sort_values(by="Datum", ascending=False)
+        
+    # 📌 ZDE PŘIDÁME PROČIŠTĚNÍ CHYBĚJÍCÍCH HODNOT (NONE / NAN / NULL)
+    # Nahradí všechny NaN / None v textových sloupcích za prázdný řetězec ""
+    filtr_df = filtr_df.fillna("")
+
+    # Pro jistotu nahradíme i případný text "None" nebo "nan"
+    textove_sloupce = ["Lokomotiva", "Popis závady", "Poznámka", "Fotka", "Kategorie", "Vytvořil", "Upravil"]
+    for col in textove_sloupce:
+        if col in filtr_df.columns:
+            filtr_df[col] = filtr_df[col].astype(str).replace({"None": "", "nan": "", "<NA>": ""})    
 
     # Zajistíme, že sloupce Vytvořil a Upravil v datovém rámci existují
     for col_autor in ["Vytvořil", "Upravil"]:
