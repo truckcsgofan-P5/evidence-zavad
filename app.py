@@ -229,9 +229,7 @@ def prihlaseni_uzivatele():
 
                     # Pokud zaškrtl zapamatování, uložíme uživatele do cookie na 30 dní
                     if zapamatovat:
-                        datum_expirace = datetime.datetime.now() + datetime.timedelta(
-                            days=30
-                        )
+                        datum_expirace = datetime.now() + timedelta(days=30)
                         controller.set(
                             COOKIE_NAME,
                             uzivatel,
