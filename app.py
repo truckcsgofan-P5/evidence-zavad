@@ -706,9 +706,9 @@ with tab_pdf:
     st.title("📄 Technická dokumentace a PDF manuály")
     st.caption("Ukládání a prohlížení PDF dokumentů přímo na GitHubu.")
 
-    RADY_LOKOMOTIV = ["844", "842", "814", "954", "Ostatní"]
+    RADY_LOKOMOTIV = ["844", "814", "754", "Ostatní"]
 
-    # Načtení již nastavených konfiguračních údajů ze Streamlit Secrets
+    # Načtení konfiguračních údajů ze Streamlit Secrets
     try:
         github_token = st.secrets["GITHUB_TOKEN"]
         repo_name = st.secrets["GITHUB_REPO"]
@@ -739,10 +739,8 @@ with tab_pdf:
         if st.button("🚀 Uložit na GitHub"):
             with st.spinner("Ukládám soubor do GitHub repozitáře..."):
                 try:
-                    # Kontrola, zda soubor na GitHubu už neexistuje
                     try:
                         contents = repo.get_contents(file_path)
-                        # Pokud existuje -> přepíše / aktualizuje ho
                         repo.update_file(
                             path=file_path,
                             message=f"Aktualizace dokumentu {uploaded_pdf.name} pro řadu {zvolena_rada}",
@@ -753,7 +751,6 @@ with tab_pdf:
                             f"✅ Soubor '{uploaded_pdf.name}' byl aktualizován na GitHubu!"
                         )
                     except GithubException:
-                        # Pokud ještě neexistuje -> vytvoří nový
                         repo.create_file(
                             path=file_path,
                             message=f"Přidán dokument {uploaded_pdf.name} pro řadu {zvolena_rada}",
@@ -763,7 +760,7 @@ with tab_pdf:
                             f"✅ Soubor '{uploaded_pdf.name}' byl úspěšně uložen na GitHub do složky {zvolena_rada}!"
                         )
 
-                    st.rerun()  # Obnovení aplikace pro okamžité načtení nového souboru
+                    st.rerun()
                 except Exception as ex:
                     st.error(f"Při ukládání došlo k chybě: {ex}")
 
@@ -778,7 +775,6 @@ with tab_pdf:
 
     target_folder = f"docs_pdf/{vybrana_rada_view}"
 
-    # Načtení seznamu uložených PDF souborů z dané složky na GitHubu
     try:
         folder_contents = repo.get_contents(target_folder)
         pdf_files = [
@@ -787,7 +783,7 @@ with tab_pdf:
     except GithubException:
         pdf_files = []
 
-   if pdf_files:
+    if pdf_files:
         soubor_dict = {f.name: f for f in pdf_files}
         zvoleny_nazev = st.selectbox(
             "Vyberte dokument k prohlížení:", list(soubor_dict.keys())
@@ -811,7 +807,11 @@ with tab_pdf:
                     mime="application/pdf",
                 )
 
-            # PROHLÍŽEČ BEZ BLOKOVÁNÍ CHROME
+            # Prohlížení přes streamlit-pdf-viewer (Chrome neblokuje)
             pdf_viewer(input=file_data, width=700, height=800)
         else:
             st.error("Dokument se nepodařilo načíst pro prohlížení.")
+    else:
+        st.info(
+            f"Ve složce **{target_folder}** na GitHubu zatím nejsou žádná PDF."
+        )
