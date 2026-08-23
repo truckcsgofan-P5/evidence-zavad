@@ -1,20 +1,19 @@
+import base64
 from datetime import datetime, timedelta
 import hmac
 import io
 import json
 import urllib.request
-import base64
-import requests
-import github
-import datetime
+
 from google import genai
 from google.genai import types
 import openpyxl
 import pandas as pd
+import requests
 import streamlit as st
 from github import Github, GithubException
-from streamlit_pdf_viewer import pdf_viewer
 from streamlit_cookies_controller import CookieController
+from streamlit_pdf_viewer import pdf_viewer
 
 st.set_page_config(
     page_title="Evidence závad lokomotiv", layout="wide", page_icon="🚆"
