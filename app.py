@@ -436,37 +436,37 @@ with tab_prehled:
         "Fotka",
     ],
     column_config={
-        # Zde definujeme šířky sloupců, aby nebyly zbytečně roztažené
+        # Pevné šířky v pixerech – můžete si čísla upravit podle chuti
         "ID": st.column_config.NumberColumn(
             "ID", 
             format="%d", 
-            width="small"
+            width=70
         ),
         "Lokomotiva": st.column_config.Column(
             "Lokomotiva", 
-            width="small"
+            width=110
         ),
         "Datum": st.column_config.DateColumn(
             "Datum", 
             format="DD.MM.YYYY", 
-            width="small"
+            width=110
         ),
         "Kategorie": st.column_config.SelectboxColumn(
             "Kategorie", 
             options=KATEGORIE_LIST, 
-            width="small"
+            width=140
         ),
         "Popis závady": st.column_config.Column(
             "Popis závady", 
-            width="medium"
+            width=300
         ),
         "Poznámka": st.column_config.Column(
             "Poznámka", 
-            width="medium"
+            width=200
         ),
         "Fotka": st.column_config.LinkColumn(
             "Fotka", 
-            width="small"
+            width=100
         ),
     },
     key="editor_zavad",
