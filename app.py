@@ -1485,7 +1485,7 @@ with tab_foto:
 
 # Tab Chat
 with tab_chat:
-    st.header("💬 Interní chat techniků")
+    st.header("💬 Chat")
     st.caption(
         "Nástěnka pro rychlou komunikaci mezi všemi přihlášenými uživateli."
     )
