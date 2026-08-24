@@ -14,6 +14,7 @@ import streamlit as st
 from github import Github, GithubException
 from streamlit_cookies_controller import CookieController
 from streamlit_pdf_viewer import pdf_viewer
+from zoneinfo import ZoneInfo  # Import pro české časové pásmo
 
 # --- TOTO DEJTE ÚPLNĚ NA ZAČÁTEK SOUBORU (před vytváření tabů) ---
 try:
@@ -1535,7 +1536,7 @@ with tab_chat:
 
     if novy_text:
         aktualni_uzivatel = st.session_state.get("uzivatel_jmeno", "Neznámý")
-        cas_zpravy = datetime.now().strftime("%d.%m. %H:%M")
+        cas_zpravy = datetime.now(ZoneInfo("Europe/Prague")).strftime("%d.%m. %H:%M")
 
         nova_zprava = {
             "uzivatel": aktualni_uzivatel,
