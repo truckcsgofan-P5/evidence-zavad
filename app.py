@@ -41,6 +41,43 @@ st.markdown(
 
 FILE_PATH = "PREDAVKA_ELEKTRONICI_PRO_APPSHEET.xlsx"
 
+CHAT_FILE_PATH = "chat_messages.json"
+
+def nacti_chat_z_githubu():
+    """Načte historii chatu z GitHub repozitáře."""
+    try:
+        file_content = repo.get_contents(CHAT_FILE_PATH)
+        json_data = file_content.decoded_content.decode("utf-8")
+        return json.loads(json_data)
+    except Exception:
+        # Pokud soubor ještě neexistuje nebo nastala chyba, vrátíme prázdný seznam
+        return []
+
+
+def uloz_chat_na_github(zpravy_list, autor="Neznámý"):
+    """Uloží nový seznam zpráv do JSON na GitHub."""
+    json_data = json.dumps(zpravy_list, ensure_ascii=False, indent=2)
+    try:
+        try:
+            file_content = repo.get_contents(CHAT_FILE_PATH)
+            repo.update_file(
+                path=CHAT_FILE_PATH,
+                message=f"Chat: nová zpráva od {autor}",
+                content=json_data,
+                sha=file_content.sha,
+            )
+        except Exception:
+            # Vytvoření souboru, pokud na GitHubu ještě neexistuje
+            repo.create_file(
+                path=CHAT_FILE_PATH,
+                message=f"Chat: vytvořen soubor chatu ({autor})",
+                content=json_data,
+            )
+        return True
+    except Exception as e:
+        st.error(f"Chyba při ukládání chatu na GitHub: {e}")
+        return False
+
 KATEGORIE_LIST = [
     "Elektrická výzbroj",
     "Mechanická část",
@@ -410,7 +447,7 @@ role_user = st.session_state.get("uzivatel_role", "viewer").lower()
 # admin  -> vidí úplně vše
 
 if role_user == "admin":
-    tab_prehled, tab_novy, tab_edit, tab_smazat, tab_pdf, tab_foto, tab_ai = st.tabs(
+    tab_prehled, tab_novy, tab_edit, tab_smazat, tab_pdf, tab_foto, tab_ai, tab_chat = st.tabs(
         [
             "📋 Přehled a úprava",
             "➕ Přidat závadu",
@@ -419,10 +456,11 @@ if role_user == "admin":
             "📄 Technická dokumentace",
             "🖼️ Fotodokumentace",
             "🤖 Gemini Asistent",
+            "💬 Chat",
         ]
     )
 elif role_user == "editor":
-    tab_prehled, tab_novy, tab_edit, tab_pdf, tab_foto, tab_ai = st.tabs(
+    tab_prehled, tab_novy, tab_edit, tab_pdf, tab_foto, tab_ai, tab_chat = st.tabs(
         [
             "📋 Přehled a úprava",
             "➕ Přidat závadu",
@@ -430,6 +468,7 @@ elif role_user == "editor":
             "📄 Technická dokumentace",
             "🖼️ Fotodokumentace",
             "🤖 Gemini Asistent",
+            "💬 Chat",
         ]
     )
     tab_smazat = None  # Editor nemá tab smazat
@@ -1443,3 +1482,73 @@ with tab_foto:
             st.info(
                 f"Ve složce **{vybrana_sub_view}** zatím nejsou žádné fotky ani videa."
             )
+
+# Tab Chat
+with tab_chat:
+    st.header("💬 Interní chat techniků")
+    st.caption(
+        "Nástěnka pro rychlou komunikaci mezi všemi přihlášenými uživateli."
+    )
+
+    # Načtení historie chatu z GitHubu (nebo ze session_state)
+    if "chat_zpravy" not in st.session_state:
+        st.session_state["chat_zpravy"] = nacti_chat_z_githubu()
+
+    # Tlačítko pro ruční aktualizaci správ
+    if st.button("🔄 Obnovit zprávy", key="refresh_chat"):
+        st.session_state["chat_zpravy"] = nacti_chat_z_githubu()
+        st.rerun()
+
+    st.markdown("---")
+
+    # Kontejner se skrolováním pro zprávy
+    chat_container = st.container(height=450)
+
+    with chat_container:
+        zpravy = st.session_state["chat_zpravy"]
+        if not zpravy:
+            st.info(
+                "Zatím zde nejsou žádné zprávy. Napište první vzkaz níže!"
+            )
+        else:
+            aktualni_prihlaseny = st.session_state.get(
+                "uzivatel_jmeno", "Neznámý"
+            )
+
+            for msg in zpravy:
+                s_uzivatel = msg.get("uzivatel", "Neznámý")
+                s_cas = msg.get("cas", "")
+                s_text = msg.get("zprava", "")
+
+                # Rozlišení vlastních zpráv od ostatních uživatelů
+                if s_uzivatel == aktualni_prihlaseny:
+                    with st.chat_message("user", avatar="👷‍♂️"):
+                        st.write(f"**Vy** ({s_cas}):")
+                        st.write(s_text)
+                else:
+                    with st.chat_message("assistant", avatar="🛠️"):
+                        st.write(f"**{s_uzivatel}** ({s_cas}):")
+                        st.write(s_text)
+
+    # Vstupní pole pro novou zprávu dole na stránce
+    novy_text = st.chat_input("Napište vzkaz kolegovi...")
+
+    if novy_text:
+        aktualni_uzivatel = st.session_state.get("uzivatel_jmeno", "Neznámý")
+        cas_zpravy = datetime.now().strftime("%d.%m. %H:%M")
+
+        nova_zprava = {
+            "uzivatel": aktualni_uzivatel,
+            "cas": cas_zpravy,
+            "zprava": novy_text.strip(),
+        }
+
+        # Přidání zprávy do lokálního stavu a okamžité uložení na GitHub
+        st.session_state["chat_zpravy"].append(nova_zprava)
+
+        with st.spinner("Odesílám zprávu..."):
+            uloz_chat_na_github(
+                st.session_state["chat_zpravy"], autor=aktualni_uzivatel
+            )
+
+        st.rerun()
