@@ -442,6 +442,22 @@ df = load_data()
 # Načtení role z přihlášení
 role_user = st.session_state.get("uzivatel_role", "viewer").lower()
 
+# =========================================================
+# VÝPOČET NEPŘEČTENÝCH ZPRÁV V CHATU
+# =========================================================
+vsechny_zpravy = nacti_chat_z_githubu()
+pocet_zprav_celkem = len(vsechny_zpravy)
+
+# Zjistíme, kolik zpráv uživatel už viděl
+pocet_videnych = st.session_state.get("chat_precteno_pocet", pocet_zprav_celkem)
+neprecteno = max(0, pocet_zprav_celkem - pocet_videnych)
+
+# Dynamický název záložky (přidá červenou tečku a číslo, pokud jsou nové zprávy)
+if neprecteno > 0:
+    nazev_chat_tab = f"💬 Chat (🔴 {neprecteno})"
+else:
+    nazev_chat_tab = "💬 Chat"
+
 # Logika zobrazení tabů podle role:
 # viewer -> vidí jen Přehled, Dokumenty, Fotodokumentaci a AI
 # editor -> vidí vše kromě Smazat
@@ -457,7 +473,7 @@ if role_user == "admin":
             "📄 Technická dokumentace",
             "🖼️ Fotodokumentace",
             "🤖 Gemini Asistent",
-            "💬 Chat",
+            nazev_chat_tab,  # Proměnná s dynamickým názvem
         ]
     )
 elif role_user == "editor":
@@ -469,7 +485,7 @@ elif role_user == "editor":
             "📄 Technická dokumentace",
             "🖼️ Fotodokumentace",
             "🤖 Gemini Asistent",
-            "💬 Chat",
+            nazev_chat_tab,  # Proměnná s dynamickým názvem
         ]
     )
     tab_smazat = None  # Editor nemá tab smazat
@@ -1486,6 +1502,8 @@ with tab_foto:
 
 # Tab Chat
 with tab_chat:
+    # Po otevření záložky se označí všechny zprávy jako přečtené
+    st.session_state["chat_precteno_pocet"] = len(vsechny_zpravy)
     st.header("💬 Chat")
     st.caption(
         "Nástěnka pro rychlou komunikaci mezi všemi přihlášenými uživateli."
