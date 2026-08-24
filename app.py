@@ -439,6 +439,15 @@ def load_data():
 
 df = load_data()
 
+
+# Převod sloupců na textový typ, aby do nich šlo zapisovat jména
+if "Upravil" in df.columns:
+    df["Upravil"] = df["Upravil"].astype(object)
+
+if "Vytvořil" in df.columns:
+    df["Vytvořil"] = df["Vytvořil"].astype(object)
+
+
 # Načtení role z přihlášení
 role_user = st.session_state.get("uzivatel_role", "viewer").lower()
 
