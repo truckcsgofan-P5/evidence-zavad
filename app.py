@@ -653,25 +653,34 @@ with tab_prehled:
                 main_idx = df[df["ID"] == row["ID"]].index
                 if not main_idx.empty:
                     i = main_idx[0]
-                    df.loc[i, "Lokomotiva"] = formatuj_lokomotivu(row["Lokomotiva"])
-                    df.loc[i, "Kategorie"] = row["Kategorie"]
 
-                    if pd.notna(row["Datum"]):
-                        df.loc[i, "Datum"] = pd.to_datetime(row["Datum"], dayfirst=True)
-                    else:
-                        df.loc[i, "Datum"] = pd.NaT
+                    # 🟢 KONTROLA: Zjistíme, zda se na řádku cokoliv změnilo
+                    zmena = (
+                        str(df.loc[i, "Popis závady"]).strip() != (str(row["Popis závady"]).strip() if pd.notna(row["Popis závady"]) else "") or
+                        str(df.loc[i, "Poznámka"]).strip() != (str(row["Poznámka"]).strip() if pd.notna(row["Poznámka"]) else "") or
+                        str(df.loc[i, "Kategorie"]) != str(row["Kategorie"]) or
+                        str(df.loc[i, "Lokomotiva"]) != formatuj_lokomotivu(row["Lokomotiva"])
+                    )
 
-                    df.loc[i, "Popis závady"] = str(row["Popis závady"]).strip() if pd.notna(row["Popis závady"]) else ""
-                    df.loc[i, "Poznámka"] = str(row["Poznámka"]).strip() if pd.notna(row["Poznámka"]) else ""
-                    df.loc[i, "Fotka"] = str(row["Fotka"]).strip() if pd.notna(row.get("Fotka")) else ""
+                    # 🟢 Zápis a uložení jména proběhne POUZE pokud došlo ke změně
+                    if zmena:
+                        df.loc[i, "Lokomotiva"] = formatuj_lokomotivu(row["Lokomotiva"])
+                        df.loc[i, "Kategorie"] = row["Kategorie"]
 
-                    # Uložení jména editora
-                    df.loc[i, "Upravil"] = str(aktualni_uzivatel)
+                        if pd.notna(row["Datum"]):
+                            df.loc[i, "Datum"] = pd.to_datetime(row["Datum"], dayfirst=True)
+                        else:
+                            df.loc[i, "Datum"] = pd.NaT
 
-                    # ... zde probíhá uložení do Excelu / na GitHub ...
+                        df.loc[i, "Popis závady"] = str(row["Popis závady"]).strip() if pd.notna(row["Popis závady"]) else ""
+                        df.loc[i, "Poznámka"] = str(row["Poznámka"]).strip() if pd.notna(row["Poznámka"]) else ""
+                        df.loc[i, "Fotka"] = str(row["Fotka"]).strip() if pd.notna(row.get("Fotka")) else ""
+
+                        # Uložení jména editora POUZE pro změněný řádek
+                        df.loc[i, "Upravil"] = str(aktualni_uzivatel)
 
             ok, err = ulozit_databazi(df, f"Hromadná úprava z tabulky ({aktualni_uzivatel})")
-            # ... zbytek kódu ...
+
             if ok:
                 st.session_state["msg_tab1"] = (
                     "✅ Všechny změny z tabulky byly úspěšně uloženy!"
