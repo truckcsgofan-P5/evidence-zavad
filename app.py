@@ -949,8 +949,14 @@ if tab_edit:
                 df.at[idx, "Popis závady"] = popis_edit.strip()
                 df.at[idx, "Poznámka"] = poznamka_edit.strip()
                 df.at[idx, "Fotka"] = cilova_fotka_url.strip()
-                df.at[idx, "Upravil"] = st.session_state.get("uzivatel_jmeno", "Neznámý")
-    
+                # 🟢 POJISTKA PROTI CHYBĚ: Zajištění, že sloupec vezme text
+                if "Upravil" in df.columns:
+                    df["Upravil"] = df["Upravil"].astype(object)
+                
+                # Přesný zápis do jednoho řádku (strana obalená do str())
+                aktualni_uzivatel = st.session_state.get("uzivatel_jmeno", "Neznámý")
+                df.at[idx, "Upravil"] = str(aktualni_uzivatel) 
+                
                 ok, err = ulozit_databazi(df, f"Úprava závady ID {vybrane_id}")
                 if ok:
                     st.session_state["msg_tab3"] = f"✅ Závada ID {vybrane_id} byla úspěšně aktualizována!"
