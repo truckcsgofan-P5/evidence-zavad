@@ -649,20 +649,43 @@ with tab_prehled:
         if st.button("💾 Uložit změny v tabulce", type="primary", key="btn_ulozit_zmeny_tabulka"):
             aktualni_uzivatel = st.session_state.get("uzivatel_jmeno", "Neznámý")
 
+            # Pomocná funkce pro ošetření prázdných buněk (vyřeší "nan" vs "")
+            def normalizuj(val):
+                if pd.isna(val) or val is None:
+                    return ""
+                s = str(val).strip()
+                return "" if s.lower() == "nan" else s
+
+            if "Upravil" in df.columns:
+                df["Upravil"] = df["Upravil"].astype(object)
+
             for idx, row in edited_df.iterrows():
                 main_idx = df[df["ID"] == row["ID"]].index
                 if not main_idx.empty:
                     i = main_idx[0]
 
-                    # 🟢 KONTROLA: Zjistíme, zda se na řádku cokoliv změnilo
+                    # 🟢 Bezpečné porovnání starých a nových dat
+                    stary_popis = normalizuj(df.loc[i, "Popis závady"])
+                    novy_popis = normalizuj(row.get("Popis závady"))
+
+                    stara_poznamka = normalizuj(df.loc[i, "Poznámka"])
+                    nova_poznamka = normalizuj(row.get("Poznámka"))
+
+                    stara_kat = normalizuj(df.loc[i, "Kategorie"])
+                    nova_kat = normalizuj(row.get("Kategorie"))
+
+                    stara_loko = normalizuj(df.loc[i, "Lokomotiva"])
+                    nova_loko = normalizuj(formatuj_lokomotivu(row.get("Lokomotiva")))
+
+                    # Zjistíme, zda došlo k REÁLNÉ změně
                     zmena = (
-                        str(df.loc[i, "Popis závady"]).strip() != (str(row["Popis závady"]).strip() if pd.notna(row["Popis závady"]) else "") or
-                        str(df.loc[i, "Poznámka"]).strip() != (str(row["Poznámka"]).strip() if pd.notna(row["Poznámka"]) else "") or
-                        str(df.loc[i, "Kategorie"]) != str(row["Kategorie"]) or
-                        str(df.loc[i, "Lokomotiva"]) != formatuj_lokomotivu(row["Lokomotiva"])
+                        stary_popis != novy_popis or
+                        stara_poznamka != nova_poznamka or
+                        stara_kat != nova_kat or
+                        stara_loko != nova_loko
                     )
 
-                    # 🟢 Zápis a uložení jména proběhne POUZE pokud došlo ke změně
+                    # Zápis proběhne POUZE a JENOM při skutečné změně
                     if zmena:
                         df.loc[i, "Lokomotiva"] = formatuj_lokomotivu(row["Lokomotiva"])
                         df.loc[i, "Kategorie"] = row["Kategorie"]
@@ -672,19 +695,17 @@ with tab_prehled:
                         else:
                             df.loc[i, "Datum"] = pd.NaT
 
-                        df.loc[i, "Popis závady"] = str(row["Popis závady"]).strip() if pd.notna(row["Popis závady"]) else ""
-                        df.loc[i, "Poznámka"] = str(row["Poznámka"]).strip() if pd.notna(row["Poznámka"]) else ""
+                        df.loc[i, "Popis závady"] = novy_popis
+                        df.loc[i, "Poznámka"] = nova_poznamka
                         df.loc[i, "Fotka"] = str(row["Fotka"]).strip() if pd.notna(row.get("Fotka")) else ""
 
-                        # Uložení jména editora POUZE pro změněný řádek
+                        # Jméno se uloží jen k tomuto konkrétnímu řádku
                         df.loc[i, "Upravil"] = str(aktualni_uzivatel)
 
             ok, err = ulozit_databazi(df, f"Hromadná úprava z tabulky ({aktualni_uzivatel})")
 
             if ok:
-                st.session_state["msg_tab1"] = (
-                    "✅ Všechny změny z tabulky byly úspěšně uloženy!"
-                )
+                st.session_state["msg_tab1"] = "✅ Změny byly úspěšně uloženy!"
                 st.rerun()
             else:
                 st.error(f"Chyba při ukládání: {err}")
