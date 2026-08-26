@@ -666,7 +666,9 @@ with tab_prehled:
                     df.loc[i, "Fotka"] = str(row["Fotka"]).strip() if pd.notna(row.get("Fotka")) else ""
 
                     # Uložení jména editora
-                    df.loc[i, "Upravil"] = aktualni_uzivatel
+                    df.loc[i, "Upravil"] = str(aktualni_uzivatel)
+
+                    # ... zde probíhá uložení do Excelu / na GitHub ...
 
             ok, err = ulozit_databazi(df, f"Hromadná úprava z tabulky ({aktualni_uzivatel})")
             # ... zbytek kódu ...
