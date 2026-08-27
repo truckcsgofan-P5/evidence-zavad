@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 import hmac
 import io
 import json
+import time
 import urllib.request
 
 from google import genai
@@ -308,6 +309,7 @@ def prihlaseni_uzivatele():
                         expires=datum_expirace,
                         same_site="lax",
                     )
+                    time.sleep(0.5)
                 st.rerun()
             else:
                 st.error("❌ Nesprávné uživatelské jméno nebo heslo.")
@@ -350,6 +352,7 @@ with col_btn:
         try:
             if controller.get(COOKIE_NAME):
                 controller.remove(COOKIE_NAME)
+                time.sleep(0.5)
         except Exception:
             pass
             
