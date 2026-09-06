@@ -1064,11 +1064,11 @@ with tab_ai:
         else:
             st.warning("Napište dotaz.")
 
-# --- TAB: Dokumentace (PDF + Word) ---
+# --- TAB: Dokumentace (PDF) ---
 with tab_pdf:
-    st.title("📄 Technická dokumentace (PDF a Word)")
+    st.title("📄 Technická dokumentace (PDF)")
     st.caption(
-        "Ukládání a prohlížení PDF i Word dokumentů v podsložkách podle řad."
+        "Ukládání a prohlížení PDF dokumentů v podsložkách podle řad."
     )
 
     RADY_LOKOMOTIV = ["844", "842", "814", "954", "Ostatní"]
@@ -1088,7 +1088,7 @@ with tab_pdf:
     # ---------------------------------------------------------
     # 1. NAHRÁVÁNÍ DOKUMENTŮ A SPRÁVA PODSLOŽEK
     # ---------------------------------------------------------
-    st.subheader("➕ Nahrát nový dokument (PDF nebo Word)")
+    st.subheader("➕ Nahrát nový dokument (PDF)")
 
     col_rada, col_sub = st.columns([1, 1])
 
