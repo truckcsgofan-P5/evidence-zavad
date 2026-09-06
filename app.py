@@ -1129,8 +1129,8 @@ with tab_pdf:
         nazev_podslozky = vybrana_podslozka
 
     uploaded_doc = st.file_uploader(
-        "Vyberte PDF nebo Word soubor:",
-        type=["pdf", "doc", "docx"],
+        "Vyberte PDF soubor:",
+        type=["pdf"],
         key="github_doc_uploader",
     )
 
@@ -1220,7 +1220,7 @@ with tab_pdf:
 
         try:
             folder_docs = repo.get_contents(target_doc_folder)
-            valid_extensions = (".pdf", ".doc", ".docx")
+            valid_extensions = (".pdf")
             doc_files = [
                 f
                 for f in folder_docs
