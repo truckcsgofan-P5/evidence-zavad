@@ -1552,75 +1552,75 @@ with tab_foto:
             )
 
 # Tab Chat
-with tab_chat:
-    # Po otevření záložky se označí všechny zprávy jako přečtené
-    st.session_state["chat_precteno_pocet"] = len(vsechny_zpravy)
-    st.session_state["chat_zpravy"] = vsechny_zpravy
-    
-    st.header("💬 Chat")
-    st.caption(
-        "Nástěnka pro rychlou komunikaci mezi všemi přihlášenými uživateli."
-    )
+if tab_chat:
+    with tab_chat:
+        st.header("💬 Chat")
+        st.caption(
+            "Nástěnka pro rychlou komunikaci mezi všemi přihlášenými uživateli."
+        )
 
-    # Načtení historie chatu z GitHubu (nebo ze session_state)
-    if "chat_zpravy" not in st.session_state:
-        st.session_state["chat_zpravy"] = nacti_chat_z_githubu()
+        # 1. Nejprve načteme zprávy z GitHubu (pokud ještě v session_state nejsou)
+        if "chat_zpravy" not in st.session_state:
+            st.session_state["chat_zpravy"] = nacti_chat_z_githubu()
 
-    # Tlačítko pro ruční aktualizaci správ
-    if st.button("🔄 Obnovit zprávy", key="refresh_chat"):
-        st.session_state["chat_zpravy"] = nacti_chat_z_githubu()
-        st.rerun()
-
-    st.markdown("---")
-
-    # Kontejner se skrolováním pro zprávy
-    chat_container = st.container(height=450)
-
-    with chat_container:
+        # 2. Až po načtení označíme zprávy jako přečtené
         zpravy = st.session_state["chat_zpravy"]
-        if not zpravy:
-            st.info(
-                "Zatím zde nejsou žádné zprávy. Napište první vzkaz níže!"
-            )
-        else:
-            aktualni_prihlaseny = st.session_state.get(
-                "uzivatel_jmeno", "Neznámý"
-            )
+        st.session_state["chat_precteno_pocet"] = len(zpravy)
 
-            for msg in zpravy:
-                s_uzivatel = msg.get("uzivatel", "Neznámý")
-                s_cas = msg.get("cas", "")
-                s_text = msg.get("zprava", "")
+        # Tlačítko pro ruční aktualizaci správ
+        if st.button("🔄 Obnovit zprávy", key="refresh_chat"):
+            st.session_state["chat_zpravy"] = nacti_chat_z_githubu()
+            st.rerun()
 
-                # Rozlišení vlastních zpráv od ostatních uživatelů
-                if s_uzivatel == aktualni_prihlaseny:
-                    with st.chat_message("user", avatar="👷‍♂️"):
-                        st.write(f"**Vy** ({s_cas}):")
-                        st.write(s_text)
-                else:
-                    with st.chat_message("assistant", avatar="🛠️"):
-                        st.write(f"**{s_uzivatel}** ({s_cas}):")
-                        st.write(s_text)
+        st.markdown("---")
 
-    # Vstupní pole pro novou zprávu dole na stránce
-    novy_text = st.chat_input("Napište vzkaz kolegovi...")
+        # Kontejner se skrolováním pro zprávy
+        chat_container = st.container(height=450)
 
-    if novy_text:
-        aktualni_uzivatel = st.session_state.get("uzivatel_jmeno", "Neznámý")
-        cas_zpravy = datetime.now(ZoneInfo("Europe/Prague")).strftime("%d.%m. %H:%M")
+        with chat_container:
+            if not zpravy:
+                st.info(
+                    "Zatím zde nejsou žádné zprávy. Napište první vzkaz níže!"
+                )
+            else:
+                aktualni_prihlaseny = st.session_state.get(
+                    "uzivatel_jmeno", "Neznámý"
+                )
 
-        nova_zprava = {
-            "uzivatel": aktualni_uzivatel,
-            "cas": cas_zpravy,
-            "zprava": novy_text.strip(),
-        }
+                for msg in zpravy:
+                    s_uzivatel = msg.get("uzivatel", "Neznámý")
+                    s_cas = msg.get("cas", "")
+                    s_text = msg.get("zprava", "")
 
-        # Přidání zprávy do lokálního stavu a okamžité uložení na GitHub
-        st.session_state["chat_zpravy"].append(nova_zprava)
+                    # Rozlišení vlastních zpráv od ostatních uživatelů
+                    if s_uzivatel == aktualni_prihlaseny:
+                        with st.chat_message("user", avatar="👷‍♂️"):
+                            st.write(f"**Vy** ({s_cas}):")
+                            st.write(s_text)
+                    else:
+                        with st.chat_message("assistant", avatar="🛠️"):
+                            st.write(f"**{s_uzivatel}** ({s_cas}):")
+                            st.write(s_text)
 
-        with st.spinner("Odesílám zprávu..."):
-            uloz_chat_na_github(
-                st.session_state["chat_zpravy"], autor=aktualni_uzivatel
-            )
+        # Vstupní pole pro novou zprávu dole na stránce
+        novy_text = st.chat_input("Napište vzkaz kolegovi...")
 
-        st.rerun()
+        if novy_text:
+            aktualni_uzivatel = st.session_state.get("uzivatel_jmeno", "Neznámý")
+            cas_zpravy = datetime.now(ZoneInfo("Europe/Prague")).strftime("%d.%m. %H:%M")
+
+            nova_zprava = {
+                "uzivatel": aktualni_uzivatel,
+                "cas": cas_zpravy,
+                "zprava": novy_text.strip(),
+            }
+
+            # Přidání zprávy do lokálního stavu a okamžité uložení na GitHub
+            st.session_state["chat_zpravy"].append(nova_zprava)
+
+            with st.spinner("Odesílám zprávu..."):
+                uloz_chat_na_github(
+                    st.session_state["chat_zpravy"], autor=aktualni_uzivatel
+                )
+
+            st.rerun()
