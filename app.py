@@ -521,6 +521,21 @@ else:  # viewer
     tab_smazat = None
     tab_chat = None
 
+# Načtení role uživatele (pokud ji v této části kódu ještě nemáte načtenou)
+role_user = st.session_state.get("uzivatel_role", "viewer")
+
+# Zobrazení odkazu POUZE pro SAdmina
+if role_user == "SAdmin":
+    st.success("👑 Vítejte v režimu Super Admin") # Volitelné: jen aby věděl, že má speciální práva
+    
+    # VARIANTA 1: Streamlit Multipage (pokud máte stránku ve složce 'pages')
+    st.page_link("https://prohlidky.streamlit.app", label="Přejít do nastavení pro SAdmin", icon="⚙️")
+    
+    # VARIANTA 2: Pokud je to odkaz na externí web nebo jinou URL
+    # st.markdown("[Přejít na portál SAdmin](https://vasedomena.cz/sadmin)")
+    
+    st.divider() # Vizuální oddělovač od zbytku stránky (Přehledu)
+
 # TAB 1: Přehled
 with tab_prehled:
     st.title("📋 Přehled a úprava závad")
