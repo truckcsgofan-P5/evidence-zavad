@@ -325,6 +325,11 @@ datum_dnes, svatek_dnes, pocasi_valmez = ziskej_info_hlavicka()
 
 # Načtení role a přiřazení přehledné ikony
 role_user = st.session_state.get("uzivatel_role", "viewer").lower()
+
+# Pomocná práva (vyhodnotí se jako True/False)
+is_admin = role_user in ["admin", "SAdmin"]  # True pro Admina i SAdmina
+is_sadmin = role_user == "SAdmin"            # True pouze pro SAdmina
+
 ikony_roli = {
     "SAdmin": "🔑 SAdmin",
     "admin": "🔑 Admin",
