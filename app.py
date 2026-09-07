@@ -521,7 +521,7 @@ with tab_prehled:
     
     # Načtení role a ověření oprávnění k editaci
     role_user = st.session_state.get("uzivatel_role", "viewer").lower()
-    je_editor = role_user in ["admin", "editor"]
+    je_editor = role_user in ["admin", "SAdmin", "editor"]
 
     if "msg_tab1" in st.session_state:
         st.success(st.session_state["msg_tab1"])
