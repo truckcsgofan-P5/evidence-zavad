@@ -456,7 +456,7 @@ if "Upravil" in df.columns:
     df["Upravil"] = df["Upravil"].astype(object)
 
 # Načtení role z přihlášení
-role_user = st.session_state.get("uzivatel_role", "viewer").lower()
+role_user = st.session_state.get("uzivatel_role", "viewer")
 
 # =========================================================
 # VÝPOČET NEPŘEČTENÝCH ZPRÁV V CHATU
