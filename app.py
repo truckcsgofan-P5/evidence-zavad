@@ -480,7 +480,8 @@ nazev_chat_tab = f"💬 Chat (🔴 {neprecteno})" if neprecteno > 0 else "💬 C
 # editor -> vidí vše kromě Smazat
 # admin  -> vidí úplně vše
 
-if role_user == "admin" or role_user == "SAdmin":
+if role_user in ["admin", "SAdmin"]:
+    # Prvky, které má vidět Admin i Super Admin (např. tlačítko Uložit, st.data_editor apod.)
     tab_prehled, tab_novy, tab_edit, tab_smazat, tab_pdf, tab_foto, tab_ai, tab_chat = st.tabs(
         [
             "📋 Přehled a úprava",
