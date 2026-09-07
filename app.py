@@ -326,21 +326,6 @@ datum_dnes, svatek_dnes, pocasi_valmez = ziskej_info_hlavicka()
 # Načtení role a přiřazení přehledné ikony
 role_user = st.session_state.get("uzivatel_role", "viewer")
 
-# Načtení role uživatele (pokud ji v této části kódu ještě nemáte načtenou)
-# role_user = st.session_state.get("uzivatel_role", "viewer")
-
-# Zobrazení odkazu POUZE pro SAdmina
-if role_user == "SAdmin":
-    st.success("👑 Vítejte v režimu Super Admin") # Volitelné: jen aby věděl, že má speciální práva
-    
-    # VARIANTA 1: Streamlit Multipage (pokud máte stránku ve složce 'pages')
-    st.page_link("https://prohlidky.streamlit.app", label="Přejít do nastavení pro SAdmin", icon="⚙️")
-    
-    # VARIANTA 2: Pokud je to odkaz na externí web nebo jinou URL
-    # st.markdown("[Přejít na portál SAdmin](https://vasedomena.cz/sadmin)")
-    
-    st.divider() # Vizuální oddělovač od zbytku stránky (Přehledu)
-
 # Pomocná práva (vyhodnotí se jako True/False)
 is_admin = role_user in ["admin", "SAdmin"]  # True pro Admina i SAdmina
 is_sadmin = role_user == "SAdmin"            # True pouze pro SAdmina
@@ -472,6 +457,21 @@ if "Upravil" in df.columns:
 
 # Načtení role z přihlášení
 role_user = st.session_state.get("uzivatel_role", "viewer")
+
+# Načtení role uživatele (pokud ji v této části kódu ještě nemáte načtenou)
+# role_user = st.session_state.get("uzivatel_role", "viewer")
+
+# Zobrazení odkazu POUZE pro SAdmina
+if role_user == "SAdmin":
+    st.success("👑 Vítejte v režimu Super Admin") # Volitelné: jen aby věděl, že má speciální práva
+    
+    # VARIANTA 1: Streamlit Multipage (pokud máte stránku ve složce 'pages')
+    st.page_link("https://prohlidky.streamlit.app", label="Přejít do nastavení pro SAdmin", icon="⚙️")
+    
+    # VARIANTA 2: Pokud je to odkaz na externí web nebo jinou URL
+    # st.markdown("[Přejít na portál SAdmin](https://vasedomena.cz/sadmin)")
+    
+    st.divider() # Vizuální oddělovač od zbytku stránky (Přehledu)
 
 # =========================================================
 # VÝPOČET NEPŘEČTENÝCH ZPRÁV V CHATU
