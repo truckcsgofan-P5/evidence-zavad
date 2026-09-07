@@ -513,6 +513,7 @@ else:  # viewer
     tab_novy = None
     tab_edit = None
     tab_smazat = None
+    tab_chat = None
 
 # TAB 1: Přehled
 with tab_prehled:
