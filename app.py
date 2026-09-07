@@ -324,7 +324,7 @@ if not prihlaseni_uzivatele():
 datum_dnes, svatek_dnes, pocasi_valmez = ziskej_info_hlavicka()
 
 # Načtení role a přiřazení přehledné ikony
-role_user = st.session_state.get("uzivatel_role", "viewer").lower()
+role_user = st.session_state.get("uzivatel_role", "viewer")
 
 # Pomocná práva (vyhodnotí se jako True/False)
 is_admin = role_user in ["admin", "SAdmin"]  # True pro Admina i SAdmina
@@ -526,7 +526,7 @@ with tab_prehled:
     st.title("📋 Přehled a úprava závad")
     
     # Načtení role a ověření oprávnění k editaci
-    role_user = st.session_state.get("uzivatel_role", "viewer").lower()
+    role_user = st.session_state.get("uzivatel_role", "viewer")
     je_editor = role_user in ["admin", "SAdmin", "editor"]
 
     if "msg_tab1" in st.session_state:
