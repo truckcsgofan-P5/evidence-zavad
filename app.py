@@ -4,6 +4,9 @@ import hmac
 import io
 import json
 import time
+import os
+import tempfile
+from moviepy.editor import VideoFileClip
 import urllib.request
 
 from google import genai
@@ -119,6 +122,60 @@ def nahraj_na_imgbb(image_bytes):
         st.error(f"Chyba při nahrávání fotky: {e}")
         return None
 
+    # ==================== 1. POMOCNÁ FUNKCE PRO UPLOAD A KONVERZI VIDEA ====================
+
+
+def zpracuj_a_nahraj_video(uploaded_file, repo, slozka_na_githubu="videa"):
+    """Převede .mov na .mp4 (pokud je potřeba) a nahraje soubor na GitHub."""
+    file_bytes = uploaded_file.read()
+    puvodni_nazev = uploaded_file.name
+    pripona = puvodni_nazev.split(".")[-1].lower()
+
+    if pripona == "mov":
+        st.info(
+            "⏳ Nahráno video ve formátu MOV. Probíhá automatická konverze na MP4..."
+        )
+
+        with tempfile.NamedTemporaryFile(
+            suffix=".mov", delete=False
+        ) as tmp_mov:
+            tmp_mov.write(file_bytes)
+            tmp_mov_path = tmp_mov.name
+
+        tmp_mp4_path = tmp_mov_path.replace(".mov", ".mp4")
+
+        try:
+            clip = VideoFileClip(tmp_mov_path)
+            clip.write_videofile(
+                tmp_mp4_path,
+                codec="libx264",
+                audio_codec="aac",
+                preset="ultrafast",
+                logger=None,
+            )
+            clip.close()
+
+            with open(tmp_mp4_path, "rb") as f:
+                final_bytes = f.read()
+
+            novy_nazev = puvodni_nazev.rsplit(".", 1)[0] + ".mp4"
+        finally:
+            if os.path.exists(tmp_mov_path):
+                os.remove(tmp_mov_path)
+            if os.path.exists(tmp_mp4_path):
+                os.remove(tmp_mp4_path)
+    else:
+        final_bytes = file_bytes
+        novy_nazev = puvodni_nazev
+
+    cesta_na_githubu = f"{slozka_na_githubu}/{novy_nazev}"
+    repo.create_file(
+        path=cesta_na_githubu,
+        message=f"Upload videa: {novy_nazev}",
+        content=final_bytes,
+    )
+
+    return f"https://raw.githubusercontent.com/{repo.full_name}/main/{cesta_na_githubu}"
 
 # --- POMOCNÁ FUNKCE PRO DATUM, SVÁTEK A POČASÍ ---
 @st.cache_data(ttl=1800)
@@ -607,69 +664,75 @@ with tab_prehled:
         if col_autor not in filtr_df.columns:
             filtr_df[col_autor] = ""
 
-    # 2. Jediné správné zobrazení tabulky
-    edited_df = st.data_editor(
-        filtr_df,
-        use_container_width=False,
-        height=500,
-        num_rows="fixed",
-        # Sloupce ID, Vytvořil a Upravil jsou zamčené proti přepsání
-        disabled=True if not je_editor else ["ID", "Vytvořil", "Upravil"],
-        hide_index=True,
-        column_order=[
-            "ID",
-            "Datum",
-            "Lokomotiva",
-            "Popis závady",
-            "Poznámka",
-            "Fotka",
-            "Kategorie",
-            "Vytvořil",
-            "Upravil",
-        ],
-        column_config={
-            "ID": st.column_config.NumberColumn(
-                "ID", 
-                format="%d", 
-                width=35
-            ),
-            "Lokomotiva": st.column_config.Column(
-                "Lokomotiva", 
-                width=60
-            ),
-            "Datum": st.column_config.DateColumn(
-                "Datum", 
-                format="DD.MM.YYYY", 
-                width=100
-            ),
-            "Kategorie": st.column_config.SelectboxColumn(
-                "Kategorie", 
-                options=KATEGORIE_LIST, 
-                width=140
-            ),
-            "Popis závady": st.column_config.Column(
-                "Popis závady", 
-                width=330
-            ),
-            "Poznámka": st.column_config.Column(
-                "Poznámka", 
-                width=200
-            ),
-            "Fotka": st.column_config.LinkColumn(
-                "Fotka", 
-                width=100
-            ),
-            "Vytvořil": st.column_config.Column(
-                "Vytvořil", 
-                width=90
-            ),
-            "Upravil": st.column_config.Column(
-                "Upravil", 
-                width=90
-            ),
-        },
-        key="editor_zavad",
+    # ==================== 2. ZOBRAZENÍ TABULKY A NÁHLEDU MÉDIÍ ====================
+
+edited_df = st.data_editor(
+    filtr_df,
+    use_container_width=False,
+    height=500,
+    num_rows="fixed",
+    disabled=True if not je_editor else ["ID", "Vytvořil", "Upravil"],
+    hide_index=True,
+    column_order=[
+        "ID",
+        "Datum",
+        "Lokomotiva",
+        "Popis závady",
+        "Poznámka",
+        "Fotka",
+        "Kategorie",
+        "Vytvořil",
+        "Upravil",
+    ],
+    column_config={
+        "ID": st.column_config.NumberColumn("ID", format="%d", width=35),
+        "Lokomotiva": st.column_config.Column("Lokomotiva", width=60),
+        "Datum": st.column_config.DateColumn(
+            "Datum", format="DD.MM.YYYY", width=100
+        ),
+        "Kategorie": st.column_config.SelectboxColumn(
+            "Kategorie", options=KATEGORIE_LIST, width=140
+        ),
+        "Popis závady": st.column_config.Column("Popis závady", width=330),
+        "Poznámka": st.column_config.Column("Poznámka", width=200),
+        "Fotka": st.column_config.LinkColumn("Fotka", width=100),
+        "Vytvořil": st.column_config.Column("Vytvořil", width=90),
+        "Upravil": st.column_config.Column("Upravil", width=90),
+    },
+    key="editor_zavad",
+)
+
+# --- BLOK PRO PŘEHRÁNÍ VIDEA A NÁHLED FOTEK (PRO iOS VŠECHNY PROHLÍŽEČE) ---
+df_s_fotkou = filtr_df[
+    filtr_df["Fotka"].astype(str).str.startswith("http", na=False)
+]
+
+if not df_s_fotkou.empty:
+    st.write("---")
+    st.subheader("🖼️ Otevřít / přehrát médium")
+
+    vybrana_zavada_id = st.selectbox(
+        "Vyberte závadu pro zobrazení:",
+        options=df_s_fotkou["ID"].tolist(),
+        format_func=lambda x: f"ID {x} - {df_s_fotkou[df_s_fotkou['ID'] == x]['Lokomotiva'].values[0]} ({df_s_fotkou[df_s_fotkou['ID'] == x]['Popis závady'].values[0][:30]}...)",
+        key="ios_media_select",
     )
+
+    url_media = df_s_fotkou[df_s_fotkou["ID"] == vybrana_zavada_id][
+        "Fotka"
+    ].values[0]
+
+    col_m1, col_m2 = st.columns([1, 2])
+    with col_m1:
+        st.link_button("🔗 Otevřít odkaz v novém okně", url_media)
+    with col_m2:
+        # Rozlišení zda jde o video nebo obrázek
+        if any(ext in url_media.lower() for ext in [".mp4", ".mov"]):
+            st.video(url_media)
+        else:
+            st.image(
+                url_media, width=300, caption=f"Náhled k ID {vybrana_zavada_id}"
+            )
 
     # --- Rychlý náhled / Otevření fotky pro iOS uživatele ---
     df_s_fotkou = filtr_df[filtr_df["Fotka"].str.startswith("http", na=False)]
