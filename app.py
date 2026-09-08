@@ -671,6 +671,27 @@ with tab_prehled:
         key="editor_zavad",
     )
 
+    # --- Rychlý náhled / Otevření fotky pro iOS uživatele ---
+    df_s_fotkou = filtr_df[filtr_df["Fotka"].str.startswith("http", na=False)]
+    
+    if not df_s_fotkou.empty:
+        st.subheader("🖼️ Otevřít fotku / video (pro iOS / iPhone)")
+        vybrana_zavada_id = st.selectbox(
+            "Vyberte závadu pro zobrazení média:",
+            options=df_s_fotkou["ID"].tolist(),
+            format_func=lambda x: f"ID {x} - {df_s_fotkou[df_s_fotkou['ID'] == x]['Lokomotiva'].values[0]} ({df_s_fotkou[df_s_fotkou['ID'] == x]['Popis závady'].values[0][:30]}...)"
+        )
+        
+        url_media = df_s_fotkou[df_s_fotkou["ID"] == vybrana_zavada_id]["Fotka"].values[0]
+        
+        col_m1, col_m2 = st.columns([1, 3])
+        with col_m1:
+            # Tlačítko st.link_button vytváří reálný HTML odkaz, který iOS nezablokuje
+            st.link_button("🔗 Otevřít fotku / video v novém okně", url_media)
+        with col_m2:
+            if any(ext in url_media.lower() for ext in [".jpg", ".jpeg", ".png", "imgbb"]):
+                st.image(url_media, width=250, caption=f"Náhled k ID {vybrana_zavada_id}")
+
     # 3. Tlačítko pro uložení změn se zobrazí jen Adminům a Editorům
     if je_editor:
         if st.button("💾 Uložit změny v tabulce", type="primary", key="btn_ulozit_zmeny_tabulka"):
