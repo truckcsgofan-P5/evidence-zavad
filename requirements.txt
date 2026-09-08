@@ -5,5 +5,4 @@ PyGithub
 google-genai
 streamlit-pdf-viewer
 streamlit-cookies-controller
-Plaintext
 moviepy
