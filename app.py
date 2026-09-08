@@ -505,9 +505,6 @@ def load_data():
 
 df = load_data()
 
-
-df = load_data()
-
 # Pouze tento jeden řádek – zajistí správný typ pro sloupec, aniž by přepsal data
 if "Upravil" in df.columns:
     df["Upravil"] = df["Upravil"].astype(object)
@@ -593,13 +590,10 @@ else:  # viewer
     tab_smazat = None
     tab_chat = None
 
-
 # TAB 1: Přehled
 with tab_prehled:
     st.title("📋 Přehled a úprava závad")
     
-    # Načtení role a ověření oprávnění k editaci
-    role_user = st.session_state.get("uzivatel_role", "viewer")
     je_editor = role_user in ["admin", "SAdmin", "editor"]
 
     if "msg_tab1" in st.session_state:
@@ -608,24 +602,16 @@ with tab_prehled:
 
     col_f1, col_f2, col_f3 = st.columns(3)
     with col_f1:
-        seznam_loko = sorted(
-            [str(x) for x in df["Lokomotiva"].dropna().unique()]
-        )
-        vybrane_loko = st.multiselect(
-            "Filtr podle lokomotivy:", options=seznam_loko
-        )
+        seznam_loko = sorted([str(x) for x in df["Lokomotiva"].dropna().unique()])
+        vybrane_loko = st.multiselect("Filtr podle lokomotivy:", options=seznam_loko)
     with col_f2:
-        vybrane_kategorie = st.multiselect(
-            "Filtr podle kategorie:", options=KATEGORIE_LIST
-        )
+        vybrane_kategorie = st.multiselect("Filtr podle kategorie:", options=KATEGORIE_LIST)
     with col_f3:
         vyhledavani = st.text_input("Hledat v popisu nebo poznámce:")
 
     filtr_df = df.copy()
     if vybrane_loko:
-        filtr_df = filtr_df[
-            filtr_df["Lokomotiva"].astype(str).isin(vybrane_loko)
-        ]
+        filtr_df = filtr_df[filtr_df["Lokomotiva"].astype(str).isin(vybrane_loko)]
     if vybrane_kategorie:
         filtr_df = filtr_df[filtr_df["Kategorie"].isin(vybrane_kategorie)]
     if vyhledavani:
@@ -636,192 +622,71 @@ with tab_prehled:
         )
         filtr_df = filtr_df[maska]
 
-    # 1. Převedení data a seřazení od nejnovějšího
     if "Datum" in filtr_df.columns:
-        filtr_df["Datum"] = pd.to_datetime(
-            filtr_df["Datum"], dayfirst=True, errors="coerce"
-        )
+        filtr_df["Datum"] = pd.to_datetime(filtr_df["Datum"], dayfirst=True, errors="coerce")
         filtr_df = filtr_df.sort_values(by="Datum", ascending=False)
         
-    # 📌 ZDE PŘIDÁME PROČIŠTĚNÍ CHYBĚJÍCÍCH HODNOT (NONE / NAN / NULL)
-    # Nahradí všechny NaN / None v textových sloupcích za prázdný řetězec ""
     filtr_df = filtr_df.fillna("")
 
-    # Pro jistotu nahradíme i případný text "None" nebo "nan"
     textove_sloupce = ["Lokomotiva", "Popis závady", "Poznámka", "Fotka", "Kategorie", "Vytvořil", "Upravil"]
     for col in textove_sloupce:
         if col in filtr_df.columns:
             filtr_df[col] = filtr_df[col].astype(str).replace({"None": "", "nan": "", "<NA>": ""}) 
 
-    # 📌 NOVÉ: Odstraní text "bez fotky" ze sloupce Fotka, aby pole zůstalo čistě prázdné
     if "Fotka" in filtr_df.columns:
-        filtr_df["Fotka"] = filtr_df["Fotka"].astype(str).replace(
-            {"bez fotky": "", "Bez fotky": ""}
-        ).str.strip()        
+        filtr_df["Fotka"] = filtr_df["Fotka"].astype(str).replace({"bez fotky": "", "Bez fotky": ""}).str.strip()        
 
-    # Zajistíme, že sloupce Vytvořil a Upravil v datovém rámci existují
     for col_autor in ["Vytvořil", "Upravil"]:
         if col_autor not in filtr_df.columns:
             filtr_df[col_autor] = ""
 
-    # ==================== 2. ZOBRAZENÍ TABULKY A NÁHLEDU MÉDIÍ ====================
-
-edited_df = st.data_editor(
-    filtr_df,
-    use_container_width=False,
-    height=500,
-    num_rows="fixed",
-    disabled=True if not je_editor else ["ID", "Vytvořil", "Upravil"],
-    hide_index=True,
-    column_order=[
-        "ID",
-        "Datum",
-        "Lokomotiva",
-        "Popis závady",
-        "Poznámka",
-        "Fotka",
-        "Kategorie",
-        "Vytvořil",
-        "Upravil",
-    ],
-    column_config={
-        "ID": st.column_config.NumberColumn("ID", format="%d", width=35),
-        "Lokomotiva": st.column_config.Column("Lokomotiva", width=60),
-        "Datum": st.column_config.DateColumn(
-            "Datum", format="DD.MM.YYYY", width=100
-        ),
-        "Kategorie": st.column_config.SelectboxColumn(
-            "Kategorie", options=KATEGORIE_LIST, width=140
-        ),
-        "Popis závady": st.column_config.Column("Popis závady", width=330),
-        "Poznámka": st.column_config.Column("Poznámka", width=200),
-        "Fotka": st.column_config.LinkColumn("Fotka", width=100),
-        "Vytvořil": st.column_config.Column("Vytvořil", width=90),
-        "Upravil": st.column_config.Column("Upravil", width=90),
-    },
-    key="editor_zavad",
-)
-
-# --- BLOK PRO PŘEHRÁNÍ VIDEA A NÁHLED FOTEK (PRO iOS VŠECHNY PROHLÍŽEČE) ---
-df_s_fotkou = filtr_df[
-    filtr_df["Fotka"].astype(str).str.startswith("http", na=False)
-]
-
-if not df_s_fotkou.empty:
-    st.write("---")
-    st.subheader("🖼️ Otevřít / přehrát médium")
-
-    vybrana_zavada_id = st.selectbox(
-        "Vyberte závadu pro zobrazení:",
-        options=df_s_fotkou["ID"].tolist(),
-        format_func=lambda x: f"ID {x} - {df_s_fotkou[df_s_fotkou['ID'] == x]['Lokomotiva'].values[0]} ({df_s_fotkou[df_s_fotkou['ID'] == x]['Popis závady'].values[0][:30]}...)",
-        key="ios_media_select",
+    # Tabulka (nyní správně vnořená pod tab_prehled)
+    edited_df = st.data_editor(
+        filtr_df,
+        use_container_width=True,
+        height=500,
+        num_rows="fixed",
+        disabled=True if not je_editor else ["ID", "Vytvořil", "Upravil"],
+        hide_index=True,
+        column_order=["ID", "Datum", "Lokomotiva", "Popis závady", "Poznámka", "Fotka", "Kategorie", "Vytvořil", "Upravil"],
+        column_config={
+            "ID": st.column_config.NumberColumn("ID", format="%d", width=35),
+            "Lokomotiva": st.column_config.Column("Lokomotiva", width=60),
+            "Datum": st.column_config.DateColumn("Datum", format="DD.MM.YYYY", width=100),
+            "Kategorie": st.column_config.SelectboxColumn("Kategorie", options=KATEGORIE_LIST, width=140),
+            "Popis závady": st.column_config.Column("Popis závady", width=330),
+            "Poznámka": st.column_config.Column("Poznámka", width=200),
+            "Fotka": st.column_config.LinkColumn("Fotka", width=100),
+            "Vytvořil": st.column_config.Column("Vytvořil", width=90),
+            "Upravil": st.column_config.Column("Upravil", width=90),
+        },
+        key="editor_zavad",
     )
 
-    url_media = df_s_fotkou[df_s_fotkou["ID"] == vybrana_zavada_id][
-        "Fotka"
-    ].values[0]
-
-    col_m1, col_m2 = st.columns([1, 2])
-    with col_m1:
-        st.link_button("🔗 Otevřít odkaz v novém okně", url_media)
-    with col_m2:
-        # Rozlišení zda jde o video nebo obrázek
-        if any(ext in url_media.lower() for ext in [".mp4", ".mov"]):
-            st.video(url_media)
-        else:
-            st.image(
-                url_media, width=300, caption=f"Náhled k ID {vybrana_zavada_id}"
-            )
-
-    # --- Rychlý náhled / Otevření fotky pro iOS uživatele ---
-    df_s_fotkou = filtr_df[filtr_df["Fotka"].str.startswith("http", na=False)]
-    
+    # Náhled médií
+    df_s_fotkou = filtr_df[filtr_df["Fotka"].astype(str).str.startswith("http", na=False)]
     if not df_s_fotkou.empty:
-        st.subheader("🖼️ Otevřít fotku / video (pro iOS / iPhone)")
+        st.write("---")
+        st.subheader("🖼️ Otevřít / přehrát médium")
+
         vybrana_zavada_id = st.selectbox(
-            "Vyberte závadu pro zobrazení média:",
+            "Vyberte závadu pro zobrazení:",
             options=df_s_fotkou["ID"].tolist(),
-            format_func=lambda x: f"ID {x} - {df_s_fotkou[df_s_fotkou['ID'] == x]['Lokomotiva'].values[0]} ({df_s_fotkou[df_s_fotkou['ID'] == x]['Popis závady'].values[0][:30]}...)"
+            format_func=lambda x: f"ID {x} - {df_s_fotkou[df_s_fotkou['ID'] == x]['Lokomotiva'].values[0]} ({df_s_fotkou[df_s_fotkou['ID'] == x]['Popis závady'].values[0][:30]}...)",
+            key="ios_media_select",
         )
-        
+
         url_media = df_s_fotkou[df_s_fotkou["ID"] == vybrana_zavada_id]["Fotka"].values[0]
-        
-        col_m1, col_m2 = st.columns([1, 3])
+
+        col_m1, col_m2 = st.columns([1, 2])
         with col_m1:
-            # Tlačítko st.link_button vytváří reálný HTML odkaz, který iOS nezablokuje
-            st.link_button("🔗 Otevřít fotku / video v novém okně", url_media)
+            st.link_button("🔗 Otevřít odkaz v novém okně", url_media)
         with col_m2:
-            if any(ext in url_media.lower() for ext in [".jpg", ".jpeg", ".png", "imgbb"]):
-                st.image(url_media, width=250, caption=f"Náhled k ID {vybrana_zavada_id}")
-
-    # 3. Tlačítko pro uložení změn se zobrazí jen Adminům a Editorům
-    if je_editor:
-        if st.button("💾 Uložit změny v tabulce", type="primary", key="btn_ulozit_zmeny_tabulka"):
-            aktualni_uzivatel = st.session_state.get("uzivatel_jmeno", "Neznámý")
-
-            # Pomocná funkce pro ošetření prázdných buněk (vyřeší "nan" vs "")
-            def normalizuj(val):
-                if pd.isna(val) or val is None:
-                    return ""
-                s = str(val).strip()
-                return "" if s.lower() == "nan" else s
-
-            if "Upravil" in df.columns:
-                df["Upravil"] = df["Upravil"].astype(object)
-
-            for idx, row in edited_df.iterrows():
-                main_idx = df[df["ID"] == row["ID"]].index
-                if not main_idx.empty:
-                    i = main_idx[0]
-
-                    # 🟢 Bezpečné porovnání starých a nových dat
-                    stary_popis = normalizuj(df.loc[i, "Popis závady"])
-                    novy_popis = normalizuj(row.get("Popis závady"))
-
-                    stara_poznamka = normalizuj(df.loc[i, "Poznámka"])
-                    nova_poznamka = normalizuj(row.get("Poznámka"))
-
-                    stara_kat = normalizuj(df.loc[i, "Kategorie"])
-                    nova_kat = normalizuj(row.get("Kategorie"))
-
-                    stara_loko = normalizuj(df.loc[i, "Lokomotiva"])
-                    nova_loko = normalizuj(formatuj_lokomotivu(row.get("Lokomotiva")))
-
-                    # Zjistíme, zda došlo k REÁLNÉ změně
-                    zmena = (
-                        stary_popis != novy_popis or
-                        stara_poznamka != nova_poznamka or
-                        stara_kat != nova_kat or
-                        stara_loko != nova_loko
-                    )
-
-                    # Zápis proběhne POUZE a JENOM při skutečné změně
-                    if zmena:
-                        df.loc[i, "Lokomotiva"] = formatuj_lokomotivu(row["Lokomotiva"])
-                        df.loc[i, "Kategorie"] = row["Kategorie"]
-
-                        if pd.notna(row["Datum"]):
-                            df.loc[i, "Datum"] = pd.to_datetime(row["Datum"], dayfirst=True)
-                        else:
-                            df.loc[i, "Datum"] = pd.NaT
-
-                        df.loc[i, "Popis závady"] = novy_popis
-                        df.loc[i, "Poznámka"] = nova_poznamka
-                        df.loc[i, "Fotka"] = str(row["Fotka"]).strip() if pd.notna(row.get("Fotka")) else ""
-
-                        # Jméno se uloží jen k tomuto konkrétnímu řádku
-                        df.loc[i, "Upravil"] = str(aktualni_uzivatel)
-
-            ok, err = ulozit_databazi(df, f"Hromadná úprava z tabulky ({aktualni_uzivatel})")
-
-            if ok:
-                st.session_state["msg_tab1"] = "✅ Změny byly úspěšně uloženy!"
-                st.rerun()
+            if any(ext in url_media.lower() for ext in [".mp4", ".mov"]):
+                st.video(url_media)
             else:
-                st.error(f"Chyba při ukládání: {err}")
-    else:
-        st.info("ℹ️ Jste přihlášeni v režimu prohlížení. Pro úpravu dat v tabulce je vyžadována role Editor nebo Admin.")
+                st.image(url_media, width=300, caption=f"Náhled k ID {vybrana_zavada_id}")
+
 # TAB 2: Nová závada s podporou Gemini, ImgBB a videí na GitHubu
     if tab_novy:    
         with tab_novy:
