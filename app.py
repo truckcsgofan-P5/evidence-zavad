@@ -290,8 +290,7 @@ def prihlaseni_uzivatele():
     with st.form("login_form"):
         uzivatel = st.text_input("Uživatelské jméno:", placeholder="Zadejte uživatelské jméno")
         heslo = st.text_input("Heslo:", type="password", placeholder="Zadejte heslo")
-        zapamatovat = st.checkbox("Zapamatovat si přihlášení (na 30 dní)", , value=True
-        )
+        zapamatovat = st.checkbox("Zapamatovat si přihlášení (na 30 dní)", value=True)
 
         submit_login = st.form_submit_button("Přihlásit se")
 
