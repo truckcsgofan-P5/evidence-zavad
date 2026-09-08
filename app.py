@@ -6,7 +6,7 @@ import json
 import time
 import os
 import tempfile
-from moviepy.editor import VideoFileClip
+from moviepy import VideoFileClip
 import urllib.request
 
 from google import genai
