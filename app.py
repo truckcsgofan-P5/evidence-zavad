@@ -4,9 +4,6 @@ import hmac
 import io
 import json
 import time
-import os
-import tempfile
-from moviepy import VideoFileClip
 import urllib.request
 
 from google import genai
@@ -98,100 +95,30 @@ KATEGORIE_LIST = [
 
 
 # --- POMOCNÁ FUNKCE PRO IMGBB ---
-def nahrat_na_imgbb(file_bytes, api_key):
-    """Nahrání fotky na ImgBB API"""
+def nahraj_na_imgbb(image_bytes):
+    """Nahraje obrázek na ImgBB a vrátí jeho URL adresu."""
+    api_key = st.secrets.get("IMGBB_API_KEY")
+    if not api_key:
+        st.error("❌ V `secrets.toml` chybí `IMGBB_API_KEY`!")
+        return None
+        
+    url = "https://api.imgbb.com/1/upload"
+    payload = {
+        "key": api_key,
+        "image": base64.b64encode(image_bytes).decode('utf-8')
+    }
+    
     try:
-        url = "https://api.imgbb.com/1/upload"
-        payload = {
-            "key": api_key,
-            "image": base64.b64encode(file_bytes).decode("utf-8")
-        }
-        res = requests.post(url, data=payload)
-        if res.status_code == 200:
-            return res.json()["data"]["url"]
+        response = requests.post(url, data=payload)
+        if response.status_code == 200:
+            return response.json()['data']['url']
         else:
-            st.error(f"Chyba při nahrávání fotky na ImgBB: {res.text}")
+            st.error(f"Chyba ImgBB API: {response.text}")
             return None
     except Exception as e:
-        st.error(f"Chyba spojení s ImgBB: {e}")
+        st.error(f"Chyba při nahrávání fotky: {e}")
         return None
 
-def nahrat_video_na_github(file_bytes, file_name, repo_name, token):
-    """Nahrání videa přímo do složky videa/ v GitHub repozitáři"""
-    try:
-        g = Github(token)
-        repo = g.get_repo(repo_name)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        cesta_v_repo = f"videa/{timestamp}_{file_name}"
-        
-        repo.create_file(
-            path=cesta_v_repo,
-            message=f"Upload videa: {file_name}",
-            content=file_bytes,
-            branch="main"
-        )
-        
-        # Sestavení přímé URL adresy na raw soubor v GitHubu
-        raw_url = f"https://raw.githubusercontent.com/{repo_name}/main/{cesta_v_repo}"
-        return raw_url
-    except Exception as e:
-        st.error(f"Chyba při nahrávání videa na GitHub: {e}")
-        return None
-
-    # ==================== 1. POMOCNÁ FUNKCE PRO UPLOAD A KONVERZI VIDEA ====================
-
-
-def zpracuj_a_nahraj_video(uploaded_file, repo, slozka_na_githubu="videa"):
-    """Převede .mov na .mp4 (pokud je potřeba) a nahraje soubor na GitHub."""
-    file_bytes = uploaded_file.read()
-    puvodni_nazev = uploaded_file.name
-    pripona = puvodni_nazev.split(".")[-1].lower()
-
-    if pripona == "mov":
-        st.info(
-            "⏳ Nahráno video ve formátu MOV. Probíhá automatická konverze na MP4..."
-        )
-
-        with tempfile.NamedTemporaryFile(
-            suffix=".mov", delete=False
-        ) as tmp_mov:
-            tmp_mov.write(file_bytes)
-            tmp_mov_path = tmp_mov.name
-
-        tmp_mp4_path = tmp_mov_path.replace(".mov", ".mp4")
-
-        try:
-            clip = VideoFileClip(tmp_mov_path)
-            clip.write_videofile(
-                tmp_mp4_path,
-                codec="libx264",
-                audio_codec="aac",
-                preset="ultrafast",
-                logger=None,
-            )
-            clip.close()
-
-            with open(tmp_mp4_path, "rb") as f:
-                final_bytes = f.read()
-
-            novy_nazev = puvodni_nazev.rsplit(".", 1)[0] + ".mp4"
-        finally:
-            if os.path.exists(tmp_mov_path):
-                os.remove(tmp_mov_path)
-            if os.path.exists(tmp_mp4_path):
-                os.remove(tmp_mp4_path)
-    else:
-        final_bytes = file_bytes
-        novy_nazev = puvodni_nazev
-
-    cesta_na_githubu = f"{slozka_na_githubu}/{novy_nazev}"
-    repo.create_file(
-        path=cesta_na_githubu,
-        message=f"Upload videa: {novy_nazev}",
-        content=final_bytes,
-    )
-
-    return f"https://raw.githubusercontent.com/{repo.full_name}/main/{cesta_na_githubu}"
 
 # --- POMOCNÁ FUNKCE PRO DATUM, SVÁTEK A POČASÍ ---
 @st.cache_data(ttl=1800)
@@ -521,6 +448,9 @@ def load_data():
 
 df = load_data()
 
+
+df = load_data()
+
 # Pouze tento jeden řádek – zajistí správný typ pro sloupec, aniž by přepsal data
 if "Upravil" in df.columns:
     df["Upravil"] = df["Upravil"].astype(object)
@@ -606,10 +536,13 @@ else:  # viewer
     tab_smazat = None
     tab_chat = None
 
+
 # TAB 1: Přehled
 with tab_prehled:
     st.title("📋 Přehled a úprava závad")
     
+    # Načtení role a ověření oprávnění k editaci
+    role_user = st.session_state.get("uzivatel_role", "viewer")
     je_editor = role_user in ["admin", "SAdmin", "editor"]
 
     if "msg_tab1" in st.session_state:
@@ -618,16 +551,24 @@ with tab_prehled:
 
     col_f1, col_f2, col_f3 = st.columns(3)
     with col_f1:
-        seznam_loko = sorted([str(x) for x in df["Lokomotiva"].dropna().unique()])
-        vybrane_loko = st.multiselect("Filtr podle lokomotivy:", options=seznam_loko)
+        seznam_loko = sorted(
+            [str(x) for x in df["Lokomotiva"].dropna().unique()]
+        )
+        vybrane_loko = st.multiselect(
+            "Filtr podle lokomotivy:", options=seznam_loko
+        )
     with col_f2:
-        vybrane_kategorie = st.multiselect("Filtr podle kategorie:", options=KATEGORIE_LIST)
+        vybrane_kategorie = st.multiselect(
+            "Filtr podle kategorie:", options=KATEGORIE_LIST
+        )
     with col_f3:
         vyhledavani = st.text_input("Hledat v popisu nebo poznámce:")
 
     filtr_df = df.copy()
     if vybrane_loko:
-        filtr_df = filtr_df[filtr_df["Lokomotiva"].astype(str).isin(vybrane_loko)]
+        filtr_df = filtr_df[
+            filtr_df["Lokomotiva"].astype(str).isin(vybrane_loko)
+        ]
     if vybrane_kategorie:
         filtr_df = filtr_df[filtr_df["Kategorie"].isin(vybrane_kategorie)]
     if vyhledavani:
@@ -638,161 +579,328 @@ with tab_prehled:
         )
         filtr_df = filtr_df[maska]
 
+    # 1. Převedení data a seřazení od nejnovějšího
     if "Datum" in filtr_df.columns:
-        filtr_df["Datum"] = pd.to_datetime(filtr_df["Datum"], dayfirst=True, errors="coerce")
+        filtr_df["Datum"] = pd.to_datetime(
+            filtr_df["Datum"], dayfirst=True, errors="coerce"
+        )
         filtr_df = filtr_df.sort_values(by="Datum", ascending=False)
         
+    # 📌 ZDE PŘIDÁME PROČIŠTĚNÍ CHYBĚJÍCÍCH HODNOT (NONE / NAN / NULL)
+    # Nahradí všechny NaN / None v textových sloupcích za prázdný řetězec ""
     filtr_df = filtr_df.fillna("")
 
+    # Pro jistotu nahradíme i případný text "None" nebo "nan"
     textove_sloupce = ["Lokomotiva", "Popis závady", "Poznámka", "Fotka", "Kategorie", "Vytvořil", "Upravil"]
     for col in textove_sloupce:
         if col in filtr_df.columns:
             filtr_df[col] = filtr_df[col].astype(str).replace({"None": "", "nan": "", "<NA>": ""}) 
 
+    # 📌 NOVÉ: Odstraní text "bez fotky" ze sloupce Fotka, aby pole zůstalo čistě prázdné
     if "Fotka" in filtr_df.columns:
-        filtr_df["Fotka"] = filtr_df["Fotka"].astype(str).replace({"bez fotky": "", "Bez fotky": ""}).str.strip()        
+        filtr_df["Fotka"] = filtr_df["Fotka"].astype(str).replace(
+            {"bez fotky": "", "Bez fotky": ""}
+        ).str.strip()        
 
+    # Zajistíme, že sloupce Vytvořil a Upravil v datovém rámci existují
     for col_autor in ["Vytvořil", "Upravil"]:
         if col_autor not in filtr_df.columns:
             filtr_df[col_autor] = ""
 
-    # Tabulka (nyní správně vnořená pod tab_prehled)
+    # 2. Jediné správné zobrazení tabulky
     edited_df = st.data_editor(
         filtr_df,
-        use_container_width=True,
+        use_container_width=False,
         height=500,
         num_rows="fixed",
+        # Sloupce ID, Vytvořil a Upravil jsou zamčené proti přepsání
         disabled=True if not je_editor else ["ID", "Vytvořil", "Upravil"],
         hide_index=True,
-        column_order=["ID", "Datum", "Lokomotiva", "Popis závady", "Poznámka", "Fotka", "Kategorie", "Vytvořil", "Upravil"],
+        column_order=[
+            "ID",
+            "Datum",
+            "Lokomotiva",
+            "Popis závady",
+            "Poznámka",
+            "Fotka",
+            "Kategorie",
+            "Vytvořil",
+            "Upravil",
+        ],
         column_config={
-            "ID": st.column_config.NumberColumn("ID", format="%d", width=35),
-            "Lokomotiva": st.column_config.Column("Lokomotiva", width=60),
-            "Datum": st.column_config.DateColumn("Datum", format="DD.MM.YYYY", width=100),
-            "Kategorie": st.column_config.SelectboxColumn("Kategorie", options=KATEGORIE_LIST, width=140),
-            "Popis závady": st.column_config.Column("Popis závady", width=330),
-            "Poznámka": st.column_config.Column("Poznámka", width=200),
-            "Fotka": st.column_config.LinkColumn("Fotka", width=100),
-            "Vytvořil": st.column_config.Column("Vytvořil", width=90),
-            "Upravil": st.column_config.Column("Upravil", width=90),
+            "ID": st.column_config.NumberColumn(
+                "ID", 
+                format="%d", 
+                width=35
+            ),
+            "Lokomotiva": st.column_config.Column(
+                "Lokomotiva", 
+                width=60
+            ),
+            "Datum": st.column_config.DateColumn(
+                "Datum", 
+                format="DD.MM.YYYY", 
+                width=100
+            ),
+            "Kategorie": st.column_config.SelectboxColumn(
+                "Kategorie", 
+                options=KATEGORIE_LIST, 
+                width=140
+            ),
+            "Popis závady": st.column_config.Column(
+                "Popis závady", 
+                width=330
+            ),
+            "Poznámka": st.column_config.Column(
+                "Poznámka", 
+                width=200
+            ),
+            "Fotka": st.column_config.LinkColumn(
+                "Fotka", 
+                width=100
+            ),
+            "Vytvořil": st.column_config.Column(
+                "Vytvořil", 
+                width=90
+            ),
+            "Upravil": st.column_config.Column(
+                "Upravil", 
+                width=90
+            ),
         },
         key="editor_zavad",
     )
 
-    # Náhled médií
-    df_s_fotkou = filtr_df[filtr_df["Fotka"].astype(str).str.startswith("http", na=False)]
+    # --- Rychlý náhled / Otevření fotky pro iOS uživatele ---
+    df_s_fotkou = filtr_df[filtr_df["Fotka"].str.startswith("http", na=False)]
+    
     if not df_s_fotkou.empty:
-        st.write("---")
-        st.subheader("🖼️ Otevřít / přehrát médium")
-
+        st.subheader("🖼️ Otevřít fotku / video (pro iOS / iPhone)")
         vybrana_zavada_id = st.selectbox(
-            "Vyberte závadu pro zobrazení:",
+            "Vyberte závadu pro zobrazení média:",
             options=df_s_fotkou["ID"].tolist(),
-            format_func=lambda x: f"ID {x} - {df_s_fotkou[df_s_fotkou['ID'] == x]['Lokomotiva'].values[0]} ({df_s_fotkou[df_s_fotkou['ID'] == x]['Popis závady'].values[0][:30]}...)",
-            key="ios_media_select",
+            format_func=lambda x: f"ID {x} - {df_s_fotkou[df_s_fotkou['ID'] == x]['Lokomotiva'].values[0]} ({df_s_fotkou[df_s_fotkou['ID'] == x]['Popis závady'].values[0][:30]}...)"
         )
-
+        
         url_media = df_s_fotkou[df_s_fotkou["ID"] == vybrana_zavada_id]["Fotka"].values[0]
-
-        col_m1, col_m2 = st.columns([1, 2])
+        
+        col_m1, col_m2 = st.columns([1, 3])
         with col_m1:
-            st.link_button("🔗 Otevřít odkaz v novém okně", url_media)
+            # Tlačítko st.link_button vytváří reálný HTML odkaz, který iOS nezablokuje
+            st.link_button("🔗 Otevřít fotku / video v novém okně", url_media)
         with col_m2:
-            if any(ext in url_media.lower() for ext in [".mp4", ".mov"]):
-                st.video(url_media)
+            if any(ext in url_media.lower() for ext in [".jpg", ".jpeg", ".png", "imgbb"]):
+                st.image(url_media, width=250, caption=f"Náhled k ID {vybrana_zavada_id}")
+
+    # 3. Tlačítko pro uložení změn se zobrazí jen Adminům a Editorům
+    if je_editor:
+        if st.button("💾 Uložit změny v tabulce", type="primary", key="btn_ulozit_zmeny_tabulka"):
+            aktualni_uzivatel = st.session_state.get("uzivatel_jmeno", "Neznámý")
+
+            # Pomocná funkce pro ošetření prázdných buněk (vyřeší "nan" vs "")
+            def normalizuj(val):
+                if pd.isna(val) or val is None:
+                    return ""
+                s = str(val).strip()
+                return "" if s.lower() == "nan" else s
+
+            if "Upravil" in df.columns:
+                df["Upravil"] = df["Upravil"].astype(object)
+
+            for idx, row in edited_df.iterrows():
+                main_idx = df[df["ID"] == row["ID"]].index
+                if not main_idx.empty:
+                    i = main_idx[0]
+
+                    # 🟢 Bezpečné porovnání starých a nových dat
+                    stary_popis = normalizuj(df.loc[i, "Popis závady"])
+                    novy_popis = normalizuj(row.get("Popis závady"))
+
+                    stara_poznamka = normalizuj(df.loc[i, "Poznámka"])
+                    nova_poznamka = normalizuj(row.get("Poznámka"))
+
+                    stara_kat = normalizuj(df.loc[i, "Kategorie"])
+                    nova_kat = normalizuj(row.get("Kategorie"))
+
+                    stara_loko = normalizuj(df.loc[i, "Lokomotiva"])
+                    nova_loko = normalizuj(formatuj_lokomotivu(row.get("Lokomotiva")))
+
+                    # Zjistíme, zda došlo k REÁLNÉ změně
+                    zmena = (
+                        stary_popis != novy_popis or
+                        stara_poznamka != nova_poznamka or
+                        stara_kat != nova_kat or
+                        stara_loko != nova_loko
+                    )
+
+                    # Zápis proběhne POUZE a JENOM při skutečné změně
+                    if zmena:
+                        df.loc[i, "Lokomotiva"] = formatuj_lokomotivu(row["Lokomotiva"])
+                        df.loc[i, "Kategorie"] = row["Kategorie"]
+
+                        if pd.notna(row["Datum"]):
+                            df.loc[i, "Datum"] = pd.to_datetime(row["Datum"], dayfirst=True)
+                        else:
+                            df.loc[i, "Datum"] = pd.NaT
+
+                        df.loc[i, "Popis závady"] = novy_popis
+                        df.loc[i, "Poznámka"] = nova_poznamka
+                        df.loc[i, "Fotka"] = str(row["Fotka"]).strip() if pd.notna(row.get("Fotka")) else ""
+
+                        # Jméno se uloží jen k tomuto konkrétnímu řádku
+                        df.loc[i, "Upravil"] = str(aktualni_uzivatel)
+
+            ok, err = ulozit_databazi(df, f"Hromadná úprava z tabulky ({aktualni_uzivatel})")
+
+            if ok:
+                st.session_state["msg_tab1"] = "✅ Změny byly úspěšně uloženy!"
+                st.rerun()
             else:
-                st.image(url_media, width=300, caption=f"Náhled k ID {vybrana_zavada_id}")
-
-# TAB 2: Nová závada
-with tab_nova:
-    st.title("➕ Přidat novou závadu")
-
-    with st.form("form_nova_zavada", clear_on_submit=True):
-        col1, col2 = st.columns(2)
-        with col1:
-            # Lze upravit na selectbox podle vašich lokomotiv, např: st.selectbox("Lokomotiva:", SEZNAM_LOKO)
-            loko_input = st.text_input("Lokomotiva (např. 742 001):")
-            kategorie_input = st.selectbox("Kategorie:", options=KATEGORIE_LIST)
-        with col2:
-            datum_input = st.date_input("Datum zjištění:", value=datetime.now())
-
-        popis_input = st.text_area("Popis závady *", placeholder="Detailně popište závadu...")
-        poznamka_input = st.text_area("Poznámka (volitelné):", placeholder="Doplňující informace...")
-
-        media_input = st.file_uploader(
-            "Připojit fotku nebo video (PNG, JPG, MP4, MOV):", 
-            type=["png", "jpg", "jpeg", "mp4", "mov"]
-        )
-
-        submit_btn = st.form_submit_button("💾 Uložit závadu")
-
-    if submit_btn:
-        if not loko_input.strip() or not popis_input.strip():
-            st.warning("⚠️ Vyplňte prosím povinná pole: Lokomotiva a Popis závady!")
-        else:
-            with st.spinner("Ukládám závadu a zpracovávám média..."):
-                url_media = ""
-
-                # Zpracování souboru, pokud byl přiložen
-                if media_input is not None:
-                    file_bytes = media_input.read()
-                    file_ext = media_input.name.split(".")[-1].lower()
-
-                    # 1. Fotka -> ImgBB
-                    if file_ext in ["png", "jpg", "jpeg"]:
-                        imgbb_key = st.secrets.get("IMGBB_API_KEY", "")
-                        if imgbb_key:
-                            url_media = nahrat_na_imgbb(file_bytes, imgbb_key)
-                        else:
-                            st.error("❌ V st.secrets chybí IMGBB_API_KEY!")
-
-                    # 2. Video -> GitHub Repozitář
-                    elif file_ext in ["mp4", "mov"]:
-                        github_token = st.secrets.get("GITHUB_TOKEN", "")
-                        repo_name = st.secrets.get("GITHUB_REPO", "")
-                        if github_token and repo_name:
-                            url_media = nahrat_video_na_github(
-                                file_bytes, 
-                                media_input.name, 
-                                repo_name, 
-                                github_token
-                            )
-                        else:
-                            st.error("❌ V st.secrets chybí GITHUB_TOKEN nebo GITHUB_REPO!")
-
-                # Výpočet nového unikátního ID
-                nove_id = 1
-                if not df.empty and "ID" in df.columns:
-                    ids = pd.to_numeric(df["ID"], errors="coerce").dropna()
-                    if not ids.empty:
-                        nove_id = int(ids.max()) + 1
-
-                # Autor záznamu ze session_state / cookies
-                vytvoril_uzivatel = st.session_state.get(
-                    "username", 
-                    st.session_state.get("prihlaseny_uzivatel", "Neznámý")
+                st.error(f"Chyba při ukládání: {err}")
+    else:
+        st.info("ℹ️ Jste přihlášeni v režimu prohlížení. Pro úpravu dat v tabulce je vyžadována role Editor nebo Admin.")
+# TAB 2: Nová závada s podporou Gemini, ImgBB a videí na GitHubu
+    if tab_novy:    
+        with tab_novy:
+            st.title("➕ Zapsat novou závadu")
+        
+            if "msg_tab2" in st.session_state:
+                st.success(st.session_state["msg_tab2"])
+                del st.session_state["msg_tab2"]
+        
+            default_kat = st.session_state.get("ai_kategorie", KATEGORIE_LIST[0])
+            default_popis = st.session_state.get("ai_popis", "")
+            kat_idx = (
+                KATEGORIE_LIST.index(default_kat)
+                if default_kat in KATEGORIE_LIST
+                else 0
+            )
+        
+            with st.form("form_zavada"):
+                col_n1, col_n2 = st.columns(2)
+                with col_n1:
+                    loko_input = st.text_input(
+                        "Označení lokomotivy:", placeholder="Např. 814 190"
+                    )
+                    kategorie_input = st.selectbox(
+                        "Kategorie závady:", options=KATEGORIE_LIST, index=kat_idx
+                    )
+                with col_n2:
+                    datum_input = st.date_input(
+                        "Datum zjištění závady:", format="DD.MM.YYYY"
+                    )
+                    # 1. ZMĚNA: Povolení video formátů ve file_uploaderu
+                    media_input = st.file_uploader(
+                        "Nahrát fotku nebo video závady (volitelné):", 
+                        type=["png", "jpg", "jpeg", "mp4", "mov", "avi"]
+                    )
+        
+                popis_input = st.text_area(
+                    "Popis závady:",
+                    value=default_popis,
+                    placeholder="Můžete zadat i nespisovně, např.: 'bliká kontrolka tlaku oleje a píská to'...",
                 )
-
-                # Nový řádek databáze
-                novy_radek = {
-                    "ID": nove_id,
-                    "Datum": datum_input.strftime("%d.%m.%Y"),
-                    "Lokomotiva": loko_input.strip(),
-                    "Kategorie": kategorie_input,
-                    "Popis závady": popis_input.strip(),
-                    "Poznámka": poznamka_input.strip(),
-                    "Fotka": url_media if url_media else "",
-                    "Vytvořil": vytvoril_uzivatel,
-                    "Upravil": ""
-                }
-
-                # Přidání řádku do DataFrame a uložení do CSV na GitHub
-                df = pd.concat([df, pd.DataFrame([novy_radek])], ignore_index=True)
-
-                if ulozit_databazi(df):
-                    st.session_state["msg_tab1"] = f"✅ Závada ID {nove_id} byla úspěšně uložena!"
-                    st.rerun()
-            
+                poznamka_input = st.text_input(
+                    "Poznámka (volitelné):", placeholder="Např. objednané díly..."
+                )
+        
+                col_b1, col_b2 = st.columns([1, 1])
+                with col_b1:
+                    submit = st.form_submit_button(
+                        "💾 Uložit závadu", type="primary", use_container_width=True
+                    )
+                with col_b2:
+                    ai_btn = st.form_submit_button(
+                        "🪄 Analyzovat text přes Gemini AI", use_container_width=True
+                    )
+        
+            if ai_btn:
+                if not popis_input:
+                    st.warning("Před analýzou vyplňte popis závady.")
+                else:
+                    with st.spinner("Gemini analyzuje text..."):
+                        res = analyzuj_zavadu_gemini(popis_input)
+                        if res:
+                            st.session_state["ai_kategorie"] = res.get(
+                                "kategorie", default_kat
+                            )
+                            st.session_state["ai_popis"] = res.get(
+                                "upraveny_popis", popis_input
+                            )
+                            st.success("✅ Text byl upraven a kategorie navržena!")
+                            st.rerun()
+        
+            if submit:
+                if not loko_input or not popis_input:
+                    st.error("Vyplňte prosím lokomotivu a popis závady.")
+                else:
+                    # 2. ZMĚNA: Výpočet ID přesunut sem nahoru, abychom ho mohli použít v názvu videa
+                    nove_id = (
+                        int(df["ID"].max()) + 1 if not df.empty and "ID" in df else 1
+                    )
+                    
+                    url_fotky = ""
+                    
+                    if media_input is not None:
+                        # Zjištění přípony souboru
+                        file_ext = media_input.name.split(".")[-1].lower()
+                        
+                        # Zpracování podle toho, zda je to video nebo fotka
+                        if file_ext in ["mp4", "mov", "avi"]:
+                            # -- ZPRACOVÁNÍ VIDEA (GITHUB) --
+                            with st.spinner("Nahrávám video na GitHub (může to chvíli trvat)..."):
+                                video_bytes = media_input.getvalue()
+                                safe_name = media_input.name.replace(" ", "_")
+                                # Uložíme do speciální složky pro videa k závadám
+                                github_path = f"docs_zavady_videa/zavada_{nove_id}_{safe_name}"
+                                
+                                try:
+                                    # Předpokládáme, že objekt 'repo' a 'repo_name' máte definovaný (např. z předchozí záložky)
+                                    repo.create_file(
+                                        path=github_path,
+                                        message=f"Přidáno video k závadě ID {nove_id}",
+                                        content=video_bytes
+                                    )
+                                    # Vygenerování funkčního odkazu
+                                    url_fotky = f"https://cdn.jsdelivr.net/gh/{repo_name}@main/{github_path}"
+                                except Exception as e:
+                                    st.error(f"Chyba při nahrávání videa na GitHub: {e}")
+                                    
+                        else:
+                            # -- ZPRACOVÁNÍ FOTKY (IMGBB) --
+                            with st.spinner("Nahrávám fotku na ImgBB..."):
+                                obrazek_bytes = media_input.getvalue()
+                                imgbb_url = nahraj_na_imgbb(obrazek_bytes)
+                                if imgbb_url:
+                                    url_fotky = imgbb_url
+        
+                    novy_radek = pd.DataFrame(
+                        [
+                            {
+                                "ID": nove_id,
+                                "Lokomotiva": formatuj_lokomotivu(loko_input),
+                                "Kategorie": kategorie_input,
+                                "Datum": pd.to_datetime(datum_input),
+                                "Popis závady": popis_input.strip(),
+                                "Poznámka": poznamka_input.strip(),
+                                "Fotka": url_fotky.strip(),
+                                "Vytvořil": st.session_state.get("uzivatel_jmeno", "Neznámý"),
+                                "Upravil": st.session_state.get("uzivatel_jmeno", "Neznámý"),
+                            }
+                        ]
+                    )
+        
+                    upraveny_df = pd.concat([df, novy_radek], ignore_index=True)
+                    ok, err = ulozit_databazi(
+                        upraveny_df, f"Přidána nová závada ID {nove_id}"
+                    )
+                    if ok:
+                        st.session_state["ai_popis"] = ""
+                        st.session_state["ai_kategorie"] = KATEGORIE_LIST[0]
+                        st.session_state["msg_tab2"] = f"✅ Závada byla úspěšně uložena pod ID {nove_id}!"
+                        st.rerun()
+                    else:
+                        st.error(f"Chyba při ukládání: {err}")            
 
 # TAB 3: Detailní úprava
 if tab_edit:    
@@ -1559,3 +1667,4 @@ if tab_chat:
                 )
 
             st.rerun()
+
