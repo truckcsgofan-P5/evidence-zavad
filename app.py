@@ -416,6 +416,43 @@ def ulozit_databazi(df_to_save, commit_msg):
     except Exception as e:
         return False, str(e)
 
+def ulozit_dily_databazi(df_to_save, commit_msg):
+    """Uloží aktualizovaný DataFrame dílů do SEZNAM_DILU.xlsx na GitHub nebo lokálně."""
+    try:
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+            df_to_save.to_excel(writer, sheet_name="Sheet1", index=False)
+        excel_bytes = output.getvalue()
+        
+        autor = st.session_state.get("uzivatel_jmeno", "Neznámý")
+        file_name = "SEZNAM_DILU.xlsx"
+
+        if "GITHUB_TOKEN" in st.secrets:
+            g_temp = Github(st.secrets["GITHUB_TOKEN"])
+            repo_temp = g_temp.get_repo(st.secrets["GITHUB_REPO"])
+            try:
+                contents = repo_temp.get_contents(file_name)
+                repo_temp.update_file(
+                    contents.path,
+                    f"{commit_msg} (autor: {autor})",
+                    excel_bytes,
+                    contents.sha,
+                )
+            except Exception:
+                # Pokud soubor na GitHubu ještě neexistuje, vytvoří ho
+                repo_temp.create_file(
+                    file_name,
+                    f"Vytvořen {file_name} (autor: {autor})",
+                    excel_bytes,
+                )
+        else:
+            with open(file_name, "wb") as f:
+                f.write(excel_bytes)
+
+        st.cache_data.clear()
+        return True, None
+    except Exception as e:
+        return False, str(e)
 
 @st.cache_data(ttl=5)
 def load_data():
@@ -497,7 +534,7 @@ nazev_chat_tab = f"💬 Chat (🔴 {neprecteno})" if neprecteno > 0 else "💬 C
 
 if role_user in ["admin", "SAdmin"]:
     # Prvky, které má vidět Admin i Super Admin (např. tlačítko Uložit, st.data_editor apod.)
-    tab_prehled, tab_novy, tab_edit, tab_smazat, tab_pdf, tab_foto, tab_ai, tab_chat = st.tabs(
+    tab_prehled, tab_novy, tab_edit, tab_smazat, tab_pdf, tab_foto, tab_ai, tab_chat, tab_dily = st.tabs(
         [
             "📋 Přehled a úprava",
             "➕ Přidat závadu",
@@ -507,10 +544,11 @@ if role_user in ["admin", "SAdmin"]:
             "🖼️ Fotodokumentace",
             "🤖 Gemini Asistent",
             nazev_chat_tab,  # Proměnná s dynamickým názvem
+            "⚙️ Seznam dílů",
         ]
     )
 elif role_user == "editor":
-    tab_prehled, tab_novy, tab_edit, tab_pdf, tab_foto, tab_ai, tab_chat = st.tabs(
+    tab_prehled, tab_novy, tab_edit, tab_pdf, tab_foto, tab_ai, tab_chat, tab_dily = st.tabs(
         [
             "📋 Přehled a úprava",
             "➕ Přidat závadu",
@@ -519,6 +557,7 @@ elif role_user == "editor":
             "🖼️ Fotodokumentace",
             "🤖 Gemini Asistent",
             nazev_chat_tab,  # Proměnná s dynamickým názvem
+            "⚙️ Seznam dílů",
         ]
     )
     tab_smazat = None  # Editor nemá tab smazat
@@ -1668,3 +1707,129 @@ if tab_chat:
 
             st.rerun()
 
+# TAB: Seznam dílů
+if tab_dily:
+    with tab_dily:
+        st.title("⚙️ Seznam náhradních dílů")
+
+        # Zjištění oprávnění
+        role_user = st.session_state.get("uzivatel_role", "viewer")
+        je_editor = role_user in ["admin", "SAdmin", "editor"]
+
+        # Zobrazení hlášky po úspěšném uložení
+        if "msg_tab_dily" in st.session_state:
+            st.success(st.session_state["msg_tab_dily"])
+            del st.session_state["msg_tab_dily"]
+
+        # Funkce pro načtení dílů
+        @st.cache_data(ttl=60)
+        def load_dily_data():
+            file_name = "SEZNAM_DILU.xlsx"
+            try:
+                if "GITHUB_TOKEN" in st.secrets:
+                    g_temp = Github(st.secrets["GITHUB_TOKEN"])
+                    repo_temp = g_temp.get_repo(st.secrets["GITHUB_REPO"])
+                    file_content = repo_temp.get_contents(file_name)
+                    return pd.read_excel(io.BytesIO(file_content.decoded_content))
+                else:
+                    return pd.read_excel(file_name)
+            except Exception:
+                return pd.DataFrame(columns=["Řada lokomotivy", "Název dílu", "Objednávací číslo", "Poznámka"])
+
+        df_dily = load_dily_data()
+        df_dily = df_dily.fillna("")
+
+        # ==================== FORMULÁŘ PRO PŘIDÁNÍ NOVÉHO DÍLU ====================
+        if je_editor:
+            with st.expander("➕ Přidat nový díl přes formulář"):
+                with st.form("form_novy_dil"):
+                    c_rada, c_nazev = st.columns(2)
+                    with c_rada:
+                        nova_rada = st.text_input("Řada lokomotivy:", placeholder="Např. 814, 810, 754...")
+                    with c_nazev:
+                        novy_nazev = st.text_input("Název dílu:", placeholder="Např. Palivový filtr...")
+
+                    c_cislo, c_poznamka = st.columns(2)
+                    with c_cislo:
+                        nove_cislo = st.text_input("Objednávací číslo:", placeholder="Např. 442 012 99...")
+                    with c_poznamka:
+                        nova_poznamka = st.text_input("Poznámka (volitelné):", placeholder="Např. Výrobce Bosch...")
+
+                    submit_dil = st.form_submit_button("💾 Uložit nový díl", type="primary")
+
+                    if submit_dil:
+                        if not nova_rada or not novy_nazev or not nove_cislo:
+                            st.error("❌ Vyplňte prosím Řadu lokomotivy, Název dílu i Objednávací číslo.")
+                        else:
+                            novy_radek = pd.DataFrame([{
+                                "Řada lokomotivy": str(nova_rada).strip(),
+                                "Název dílu": str(novy_nazev).strip(),
+                                "Objednávací číslo": str(nove_cislo).strip(),
+                                "Poznámka": str(nova_poznamka).strip()
+                            }])
+
+                            df_nove = pd.concat([df_dily, novy_radek], ignore_index=True)
+                            
+                            ok, err = ulozit_dily_databazi(df_nove, f"Přidán nový díl {novy_nazev}")
+                            if ok:
+                                st.session_state["msg_tab_dily"] = f"✅ Díl {novy_nazev} byl úspěšně uložen!"
+                                st.rerun()
+                            else:
+                                st.error(f"Chyba při ukládání: {err}")
+
+        # ==================== FILTRY A TABULKA ====================
+        col_d1, col_d2 = st.columns(2)
+        with col_d1:
+            seznam_rad = sorted([str(x) for x in df_dily["Řada lokomotivy"].unique() if x])
+            vybrane_rady = st.multiselect("Filtr podle řady lokomotivy:", options=seznam_rad)
+        with col_d2:
+            hledany_vyraz = st.text_input("Hledat název nebo objednávací číslo:")
+
+        filtr_dily = df_dily.copy()
+        
+        if vybrane_rady:
+            filtr_dily = filtr_dily[filtr_dily["Řada lokomotivy"].astype(str).isin(vybrane_rady)]
+        
+        if hledany_vyraz:
+            maska = (
+                filtr_dily["Název dílu"].astype(str).str.contains(hledany_vyraz, case=False, na=False) |
+                filtr_dily["Objednávací číslo"].astype(str).str.contains(hledany_vyraz, case=False, na=False)
+            )
+            filtr_dily = filtr_dily[maska]
+
+        # Interaktivní úprava a mazání v tabulce
+        if je_editor:
+            st.info("💡 **Tip pro editory:** Hodnoty v tabulce můžete přímo přepisovat. Řádek smažete jeho označením a stisknutím klávesy Delete.")
+            
+            edited_dily_df = st.data_editor(
+                filtr_dily,
+                use_container_width=True,
+                hide_index=True,
+                num_rows="dynamic",  # Umožňuje přidávat i mazat řádky přímo v tabulce
+                height=450,
+                key="editor_dilu_tabulka"
+            )
+
+            if st.button("💾 Uložit změny v tabulce dílů", type="primary", key="btn_ulozit_dily_tabulka"):
+                # Pokud nebyly použité filtry, uložíme rovnou upravenou tabulku
+                if not vybrane_rady and not hledany_vyraz:
+                    df_to_save = edited_dily_df
+                else:
+                    # Pokud byly použité filtry, sloučíme nefiltrovaná data s nově upravenými
+                    nefiltrovana = df_dily[~df_dily.index.isin(filtr_dily.index)]
+                    df_to_save = pd.concat([nefiltrovana, edited_dily_df], ignore_index=True)
+
+                ok, err = ulozit_dily_databazi(df_to_save, "Úprava/Smazání dílů v tabulce")
+                if ok:
+                    st.session_state["msg_tab_dily"] = "✅ Změny v seznamu dílů byly úspěšně uloženy!"
+                    st.rerun()
+                else:
+                    st.error(f"Chyba při ukládání: {err}")
+        else:
+            # Pro pouze čtení (Viewer)
+            st.dataframe(
+                filtr_dily,
+                use_container_width=True,
+                hide_index=True,
+                height=450
+            )
