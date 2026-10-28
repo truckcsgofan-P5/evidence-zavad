@@ -584,7 +584,7 @@ else:  # viewer
 
 
     # TAB 1: Přehled
- with tab_prehled:
+with tab_prehled:
     st.title("📋 Přehled a úprava závad")
     
     # Načtení role a ověření oprávnění k editaci
