@@ -479,6 +479,12 @@ def load_data():
     
     if "Fotka" not in df.columns:
         df["Fotka"] = ""
+
+    # 📌 NOVÉ: Přidání sloupce Sledováno (výchozí False)
+    if "Sledováno" not in df.columns:
+        df["Sledováno"] = False
+    else:
+        df["Sledováno"] = df["Sledováno"].fillna(False).astype(bool)
         
     return df
 
@@ -579,6 +585,32 @@ else:  # viewer
 # TAB 1: Přehled
 with tab_prehled:
     st.title("📋 Přehled a úprava závad")
+
+    # TAB 1: Přehled
+with tab_prehled:
+    st.title("📋 Přehled a úprava závad")
+    
+    # Načtení role a ověření oprávnění k editaci
+    role_user = st.session_state.get("uzivatel_role", "viewer")
+    je_editor = role_user in ["admin", "SAdmin", "editor"]
+
+    if "msg_tab1" in st.session_state:
+        st.success(st.session_state["msg_tab1"])
+        del st.session_state["msg_tab1"]
+
+    # 📌 NOVÉ: Zvýrazněný přehled sledovaných závad nahoře
+    sledovane_df = df[df["Sledováno"] == True]
+    if not sledovane_df.empty:
+        st.markdown("### 🔍 Právě sledované závady (čeká se na ověření opravy)")
+        for _, row_s in sledovane_df.iterrows():
+            st.warning(
+                f"**Lokomotiva:** {row_s['Lokomotiva']} &nbsp;|&nbsp; "
+                f"**ID:** {int(row_s['ID']) if pd.notna(row_s['ID']) else '-'} &nbsp;|&nbsp; "
+                f"**Kategorie:** {row_s['Kategorie']}\n\n"
+                f"📝 **Popis:** {row_s['Popis závady']}" + 
+                (f" *(Poznámka: {row_s['Poznámka']})*" if str(row_s['Poznámka']).strip() else "")
+            )
+        st.divider()
     
     # Načtení role a ověření oprávnění k editaci
     role_user = st.session_state.get("uzivatel_role", "viewer")
@@ -656,6 +688,7 @@ with tab_prehled:
         disabled=True if not je_editor else ["ID", "Vytvořil", "Upravil"],
         hide_index=True,
         column_order=[
+            "Sledováno",  # 📌 Přidáno sem na začátek
             "ID",
             "Datum",
             "Lokomotiva",
@@ -667,6 +700,12 @@ with tab_prehled:
             "Upravil",
         ],
         column_config={
+            "Sledováno": st.column_config.CheckboxColumn(
+                "🔍 Sledovat",
+                help="Zaškrtněte pro sledování závady do vyřešení",
+                default=False,
+                width=35
+            ),
             "ID": st.column_config.NumberColumn(
                 "ID", 
                 format="%d", 
@@ -764,6 +803,10 @@ with tab_prehled:
                     stara_loko = normalizuj(df.loc[i, "Lokomotiva"])
                     nova_loko = normalizuj(formatuj_lokomotivu(row.get("Lokomotiva")))
 
+                    # 📌 NOVÉ: Sledování změny checkboxu
+                    stara_sledovanost = bool(df.loc[i, "Sledováno"]) if "Sledováno" in df.columns else False
+                    nova_sledovanost = bool(row.get("Sledováno", False))
+
                     # Zjistíme, zda došlo k REÁLNÉ změně
                     zmena = (
                         stary_popis != novy_popis or
@@ -776,6 +819,7 @@ with tab_prehled:
                     if zmena:
                         df.loc[i, "Lokomotiva"] = formatuj_lokomotivu(row["Lokomotiva"])
                         df.loc[i, "Kategorie"] = row["Kategorie"]
+                        df.loc[i, "Sledováno"] = nova_sledovanost  # 📌 Uložení stavu sledování
 
                         if pd.notna(row["Datum"]):
                             df.loc[i, "Datum"] = pd.to_datetime(row["Datum"], dayfirst=True)
