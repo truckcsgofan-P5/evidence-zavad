@@ -814,7 +814,7 @@ with tab_prehled:
                         stary_popis != novy_popis or
                         stara_poznamka != nova_poznamka or
                         stara_kat != nova_kat or
-                        stara_loko != nova_loko
+                        stara_loko != nova_loko or
                         stara_sledovanost != nova_sledovanost  # 📌 TOTO TADY CHYBĚLO!
                     )
 
