@@ -802,9 +802,12 @@ with tab_prehled:
                     stara_loko = normalizuj(df.loc[i, "Lokomotiva"])
                     nova_loko = normalizuj(formatuj_lokomotivu(row.get("Lokomotiva")))
 
-                    # 📌 NOVÉ: Sledování změny checkboxu
-                    stara_sledovanost = bool(df.loc[i, "Sledováno"]) if "Sledováno" in df.columns else False
-                    nova_sledovanost = bool(row.get("Sledováno", False))
+                    # 📌 Bezpečné zjištění staré a nové sledovanosti
+                    stara_sledovanost = bool(df.loc[i, "Sledováno"]) if "Sledováno" in df.columns and pd.notna(df.loc[i, "Sledováno"]) else False
+                    
+                    val_sled = row.get("Sledováno", False)
+                    nova_sledovanost = True if val_sled is True or str(val_sled).lower() in ["true", "1", "1.0", "yes"] else False
+
 
                     # Zjistíme, zda došlo k REÁLNÉ změně
                     zmena = (
