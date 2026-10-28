@@ -815,6 +815,7 @@ with tab_prehled:
                         stara_poznamka != nova_poznamka or
                         stara_kat != nova_kat or
                         stara_loko != nova_loko
+                        stara_sledovanost != nova_sledovanost  # 📌 TOTO TADY CHYBĚLO!
                     )
 
                     # Zápis proběhne POUZE a JENOM při skutečné změně
