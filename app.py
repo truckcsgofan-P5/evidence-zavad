@@ -480,11 +480,13 @@ def load_data():
     if "Fotka" not in df.columns:
         df["Fotka"] = ""
 
-    # 📌 NOVÉ: Přidání sloupce Sledováno (výchozí False)
+    # 📌 TOTO JE KLÍČOVÉ: Bezpečný převod sloupce Sledováno na reálné True/False po načtení z Excelu
     if "Sledováno" not in df.columns:
         df["Sledováno"] = False
     else:
-        df["Sledováno"] = df["Sledováno"].fillna(False).astype(bool)
+        df["Sledováno"] = df["Sledováno"].fillna(False).apply(
+            lambda x: True if str(x).lower() in ["true", "1", "1.0", "yes", "y"] else False
+        )
         
     return df
 
